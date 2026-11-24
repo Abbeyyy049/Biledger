@@ -4,6 +4,14 @@ import { exportWorkbook, parseWorkbook } from './excel.js';
 const ICON = {
   house:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
   car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17v2M19 17v2M3 13l2-5.5A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.9 1.5L21 13v4H3z"/><circle cx="7.5" cy="13.5" r=".6"/><circle cx="16.5" cy="13.5" r=".6"/></svg>',
+  apartment:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/></svg>',
+  moto:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M8.5 16.5h6l3-6h-4l-2-3H9M14 7h3l1.5 3.5"/></svg>',
+  shop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6"/></svg>',
+  land:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  person:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+  pet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="9" r="1.8"/><circle cx="12" cy="6.5" r="1.8"/><circle cx="17" cy="9" r="1.8"/><path d="M12 12c-3 0-5.5 3.2-5.5 5.3 0 1.6 1.4 2.2 2.8 1.8 1.1-.3 1.8-.6 2.7-.6s1.6.3 2.7.6c1.4.4 2.8-.2 2.8-1.8C17.5 15.2 15 12 12 12z"/></svg>',
+  device:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg>',
+  invest:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.1 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5v11"/></svg>',
   other:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
@@ -91,8 +99,9 @@ function migrateV2(st){
 let S={...defaultConfig(),expenses:[],moves:[]};
 const clean=o=>JSON.parse(JSON.stringify(o));
 const fail=e=>{console.error(e);toast('沒有存到雲端：'+(e.code||e.message))};
-let cfgTimer;
-function saveCfg(){clearTimeout(cfgTimer);cfgTimer=setTimeout(()=>{const c={v:3};CFG_KEYS.forEach(k=>c[k]=S[k]);B.saveConfig(clean(c)).catch(fail)},300)}
+let cfgTimer, cfgDirty=false;
+// settings changes are batched for 300 ms; until written, incoming copies must not overwrite them
+function saveCfg(){cfgDirty=true;clearTimeout(cfgTimer);cfgTimer=setTimeout(()=>{cfgDirty=false;const c={v:3};CFG_KEYS.forEach(k=>c[k]=S[k]);B.saveConfig(clean(c)).catch(fail)},300)}
 
 const subMap=()=>{const m={};S.cats.forEach(c=>c.subs.forEach(s=>m[s.id]={...s,cat:c}));return m};
 const subName=id=>subMap()[id]?.name||'未分類';
@@ -101,7 +110,10 @@ const assetOf=id=>S.assets.find(a=>a.id===id)||{name:'未指定資產',nick:'',k
 const withAsset=(text,id)=>id?text+'・'+assetShort(id):text;
 const matchAsset=(e,sel)=>sel==='all'||(sel==='none'?!e.asset:sel.startsWith('f:')?!!e.asset&&assetOf(e.asset).folder===sel.slice(2):e.asset===sel);
 const buyName=()=>S.cats.find(c=>c.id==='buy')?.name||'購置';
-const assetShort=id=>{const a=assetOf(id);return a.nick&&a.kind==='house'?a.nick:a.name};
+// asset icons people can pick from; for places, the nickname is shown in lists instead of the long address
+const KINDS=[['house','房子'],['apartment','公寓／大樓'],['land','土地'],['shop','店面／公司'],['car','汽車'],['moto','機車'],['person','家人'],['pet','寵物'],['device','電子設備'],['invest','投資'],['other','其他']];
+const PLACE=['house','apartment','land','shop'];
+const assetShort=id=>{const a=assetOf(id);return a.nick&&PLACE.includes(a.kind)?a.nick:a.name};
 const jarOf=id=>S.jars.find(j=>j.id===id);
 const srcLabel=id=>id===NONE?NONE_LABEL:(jarOf(id)?.name||'已刪除的罐子');
 const shortPeriod=e=>e.ps&&e.pe?md(e.ps)+'–'+md(e.pe):'';
@@ -505,10 +517,10 @@ function renderSetup(){
   let body='';
   if(setupTab==='assets'){
     body=S.folders.map(f=>`<div class="card"><div class="srow"><input type="text" value="${esc(f.name)}" data-edit="folder" data-id="${f.id}" style="font-weight:700" aria-label="分組名稱"><span class="tiny faint">分組</span>${S.folders.length>1?delBtn('delfolder',f.id,'刪除分組'):''}</div>
-      ${S.assets.filter(a=>a.folder===f.id).map(a=>`<div class="srow" style="flex-wrap:wrap;padding-left:20px;${a.archived?'opacity:.5':''}"><span class="dot" style="width:30px;height:30px">${ICON[a.kind]||ICON.other}</span>
+      ${S.assets.filter(a=>a.folder===f.id).map(a=>`<div class="srow" style="flex-wrap:wrap;padding-left:20px;${a.archived?'opacity:.5':''}"><button class="dot" data-act="pickicon" data-id="${a.id}" aria-label="換圖示" title="換圖示" style="width:34px;height:34px;border:1.5px dashed var(--faint)">${ICON[a.kind]||ICON.other}</button>
         <span class="stack" style="gap:0;flex:1 1 170px;min-width:0"><input type="text" value="${esc(a.name)}" data-edit="asset" data-id="${a.id}" aria-label="資產名稱"><input type="text" value="${esc(a.nick||'')}" placeholder="暱稱（選填）" data-edit="nick" data-id="${a.id}" class="small" style="color:var(--muted)" aria-label="暱稱"></span>
-        <span class="inline" style="margin-left:auto"><select class="sel" data-edit="kind" data-id="${a.id}" aria-label="種類" style="padding-block:4px;font-size:13px">${[['house','房子'],['car','車子'],['other','其他']].map(([k,l])=>`<option value="${k}"${a.kind===k?' selected':''}>${l}</option>`).join('')}</select><select class="sel" data-edit="move" data-id="${a.id}" aria-label="移到分組" style="padding-block:4px;font-size:13px">${S.folders.map(x=>`<option value="${x.id}"${x.id===a.folder?' selected':''}>${esc(x.name)}</option>`).join('')}</select>
-        <button class="btn sm ghost" data-act="archive" data-id="${a.id}">${a.archived?'恢復':'封存'}</button></span></div>`).join('')}
+        <span class="inline" style="margin-left:auto"><select class="sel" data-edit="move" data-id="${a.id}" aria-label="移到分組" style="padding-block:4px;font-size:13px">${S.folders.map(x=>`<option value="${x.id}"${x.id===a.folder?' selected':''}>${esc(x.name)}</option>`).join('')}</select>
+        <button class="btn sm ghost" data-act="archive" data-id="${a.id}">${a.archived?'恢復':'封存'}</button>${delBtn('delasset',a.id,'刪除資產')}</span></div>`).join('')}
       <div class="srow" style="padding-left:20px"><button class="btn sm" data-act="newasset" data-id="${f.id}">＋ 新增資產</button></div></div>`).join('')+
       `<button class="btn ghost" data-act="newfolder">＋ 新增分組</button><div class="hint">資產可以是房子、車子或任何想分開記帳的東西，記帳時是選填的。分組用來把資產分開，例如個人、公司、家人；只有一組時首頁不會顯示組名。封存的資產記帳時不會出現，舊紀錄會保留。</div>`;
   } else if(setupTab==='cats'){
@@ -610,6 +622,8 @@ document.addEventListener('click',ev=>{
     newfolder:()=>{S.folders.push({id:uid('f'),name:'新分組'});saveCfg();renderSetup()},
     delfolder:()=>{if(S.assets.some(a=>a.folder===id)){toast('這個分組裡還有資產，先把資產移到別組');return}S.folders=S.folders.filter(f=>f.id!==id);saveCfg();renderSetup()},
     newasset:()=>{S.assets.push({id:uid('a'),name:'新資產',nick:'',folder:id,kind:'house'});saveCfg();renderSetup()},
+    pickicon:()=>iconPicker(S.assets.find(a=>a.id===id)),
+    delasset:()=>deleteAsset(S.assets.find(a=>a.id===id)),
     archive:()=>{const a=S.assets.find(a=>a.id===id);a.archived=!a.archived;saveCfg();renderSetup()},
     newcat:()=>{S.cats.push({id:uid('c'),name:'新大類',subs:[]});saveCfg();renderSetup()},
     delcat:()=>{S.cats=S.cats.filter(c=>c.id!==id);saveCfg();renderSetup()},
@@ -682,6 +696,24 @@ function billForm(){
   });
 }
 const xctx=()=>({S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,cur:cur(),buyName:buyName()});
+function iconPicker(a){
+  openSheet('選擇圖示',`<div class="stats" style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr))">${KINDS.map(([k,l])=>`<button class="card pad stack" data-kind="${k}" style="align-items:center;gap:6px;${a.kind===k?'border-color:var(--accent);color:var(--accent)':''}"><span class="dot">${ICON[k]}</span><span class="small">${l}</span></button>`).join('')}</div>
+    <div class="hint" style="margin-top:12px">房子、公寓、土地、店面這幾種，列表裡會顯示暱稱，不會顯示完整地址。</div>`,root=>{
+    root.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{a.kind=b.dataset.kind;saveCfg();closeSheet();renderSetup()});
+  });
+}
+function deleteAsset(a){
+  const used=S.expenses.filter(e=>e.asset===a.id);
+  openSheet('刪除資產',`<div class="form"><div class="card pad stack" style="gap:6px"><b>${esc(a.name)}</b>
+    <div class="small muted">${used.length?`有 <b>${used.length}</b> 筆開銷屬於這個資產。刪除後，這些開銷會保留，但會變成「不指定資產」，這個資產的固定帳單提醒也會一起刪除。如果只是暫時不用，建議改用「封存」。`:'這個資產還沒有任何開銷，可以放心刪除。'}</div></div>
+    <button class="btn danger" id="adel">刪除</button></div>`,root=>{
+    root.querySelector('#adel').onclick=()=>{
+      used.forEach(e=>{e.asset='';B.putExpense(clean(e)).catch(fail)});
+      S.assets=S.assets.filter(x=>x!==a);S.bills=S.bills.filter(b=>b.asset!==a.id);
+      saveCfg();closeSheet();renderSetup();toast('已刪除');
+    };
+  });
+}
 function passwordForm(){
   openSheet('設定密碼',`<div class="form"><div class="fgroup">
     <div class="f"><label for="pe">Email</label><input id="pe" type="email" autocomplete="email" value="${esc(USER?.email||'')}"></div>
@@ -767,6 +799,7 @@ B.onUser((user,err)=>{
     onConfig:(cfg,fromCache,e)=>{
       if(e){showGate(`<div class="err">讀不到資料：${esc(e.code||e.message)}。請確認 Firestore 的安全規則已經設定好。</div><button class="btn ghost" id="gout">登出</button>`);gate.querySelector('#gout').onclick=()=>B.logout();return}
       if(!cfg){if(!fromCache){have=false;showWelcome()}return}
+      if(cfgDirty)return;
       have=true;got.cfg=true;Object.assign(S,defaultConfig(),cfg);S.v=cfg.v||2;if(!jarOf(curJar))curJar=S.jars[0]?.id||null;
       applyFont(S.font);startApp();tryMigrate();
     },
