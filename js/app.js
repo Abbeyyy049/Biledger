@@ -216,7 +216,8 @@ function periodRange(){
     default: return null;
   }
 }
-const C={asset:'all',subs:['elec','water'],slot:{elec:0,water:1},mode:'service',range:12};
+const C={by:'sub',asset:'all',cat:'all',picks:{sub:['elec','water'],cat:[],asset:[]},slot:{'sub:elec':0,'sub:water':1},mode:'service',range:12};
+const MAXS=6;
 let setupTab='assets', curJar=null;
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1800)}
 function topbar(t,sub,right=''){return `<header class="top"><div class="grow"><h1>${t}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div>${right}</header>`}
@@ -249,7 +250,7 @@ function expRow(e,pick){
     <span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(title(e))}${e.asset?`<span class="muted" style="font-weight:500">・${esc(assetShort(e.asset))}</span>`:''}</span>
       <span class="meta"><span class="tiny muted">${md(e.date)}${per?`・用 ${per}`:''}</span>
         ${e.status==='due'?'<span class="pill due">待繳</span>':''}${srcTag(e)}${e.flag?'<span class="pill neg">待確認</span>':''}</span></span>
-    <span class="amt num">${money(e.amount)}</span></button>`;
+    <span class="amt num">${money(-e.amount)}</span></button>`;
 }
 function jarCard(j,mini){
   const bal=jarBalance(j.id);
@@ -274,19 +275,19 @@ function renderHome(){
       return `<button class="item" data-act="${u.kind==='due'?'edit':'addfrom'}" data-id="${u.kind==='due'?u.exp.id:u.bill.id}">
         <span class="when"><b class="num">${md(u.date)}</b><span>${n===0?'今天':n>0?n+' 天後':'星期'+WEEK[parse(u.date).getDay()]}</span></span>
         <span class="grow"><span style="display:block;font-weight:600" class="ell">${esc(subName(u.sub))}${u.asset?`<span class="muted" style="font-weight:500">・${esc(assetShort(u.asset))}</span>`:''}</span><span class="meta">${state}</span></span>
-        <span class="amt num muted">${u.kind==='due'?'':'約 '}${money(u.amount)}</span></button>`}).join(''):'<div class="empty">接下來 45 天沒有要繳的帳單</div>';
+        <span class="amt num muted">${u.kind==='due'?'':'約 '}${money(-u.amount)}</span></button>`}).join(''):'<div class="empty">接下來 45 天沒有要繳的帳單</div>';
   const groups=S.folders.map(f=>({f,as:S.assets.filter(a=>a.folder===f.id&&!a.archived)})).filter(g=>g.as.length);
   const card=a=>{const es=paid().filter(e=>e.asset===a.id);const last=es.sort((x,z)=>x.date<z.date?1:-1)[0];
     return `<button class="asset" data-act="assetlist" data-id="${a.id}"><span class="row"><span class="dot" style="width:30px;height:30px">${iconHTML(a.kind)}</span><span class="tiny muted ell grow">${esc(a.nick||'')}</span></span>
-      <span class="nm">${esc(a.name)}</span><span class="v num">${money0(sum(es.filter(e=>notBuy(e)&&e.date.startsWith(y))))}</span><span class="tiny faint">今年・${last?'最近 '+md(last.date)+' '+esc(subName(last.sub)):'還沒有紀錄'}</span></button>`};
-  const folders=groups.length?groups.map(g=>`<div>${groups.length>1?`<div class="gh" style="padding-top:0"><span>${esc(g.f.name)}</span><span class="num">${money0(sum(ops.filter(e=>e.date.startsWith(y)&&g.as.some(a=>a.id===e.asset))))}／今年</span></div>`:''}<div class="agrid">${g.as.map(card).join('')}</div></div>`).join('')
+      <span class="nm">${esc(a.name)}</span><span class="v num">${money0(-sum(es.filter(e=>notBuy(e)&&e.date.startsWith(y))))}</span><span class="tiny faint">今年・${last?'最近 '+md(last.date)+' '+esc(subName(last.sub)):'還沒有紀錄'}</span></button>`};
+  const folders=groups.length?groups.map(g=>`<div>${groups.length>1?`<div class="gh" style="padding-top:0"><span>${esc(g.f.name)}</span><span class="num">${money0(-sum(ops.filter(e=>e.date.startsWith(y)&&g.as.some(a=>a.id===e.asset))))}／今年</span></div>`:''}<div class="agrid">${g.as.map(card).join('')}</div></div>`).join('')
     :`<div class="card empty">還沒有資產。<br>房子、車子或任何想分開記帳的東西都可以設成資產，這是選填的。<br><button class="btn sm ghost" style="margin-top:8px" data-act="goassets">新增資產</button></div>`;
   main.innerHTML=topbar(`${d.getMonth()+1}月${d.getDate()}日 星期${WEEK[d.getDay()]}`,syncLabel(),gearBtn)+`
   <div class="homegrid"><div class="stack">
     ${pinned.length?`<div class="jarcards">${pinned.map((j,i)=>jarCard(j,i>0)).join('')}</div>`:`<button class="card pad row" data-tab="jar" style="text-align:left"><span class="dot">${ICON.pin}</span><span class="grow small muted">首頁沒有釘選存錢罐。到存錢罐頁面按「釘選到首頁」</span><span class="muted">›</span></button>`}
     <div class="tiles">
-      <div class="card tile"><div class="label">${d.getMonth()+1} 月花費</div><div class="v num">${money(mT)}</div><div class="tiny faint">不含${esc(buyName())}類</div></div>
-      <div class="card tile"><div class="label">${y} 年花費</div><div class="v num">${money(yT)}</div><div class="tiny faint">不含${esc(buyName())}類</div></div>
+      <div class="card tile"><div class="label">${d.getMonth()+1} 月花費</div><div class="v num">${money(-mT)}</div><div class="tiny faint">不含${esc(buyName())}類</div></div>
+      <div class="card tile"><div class="label">${y} 年花費</div><div class="v num">${money(-yT)}</div><div class="tiny faint">不含${esc(buyName())}類</div></div>
     </div>
     ${flags?`<button class="card pad row" data-act="goreview" style="text-align:left;border-color:var(--warn)"><span class="dot" style="background:var(--warn-soft);color:var(--warn)">${ICON.bell}</span><span class="grow"><b>${flags} 筆匯入資料要請你確認</b><span class="tiny muted" style="display:block">匯入時發現可能有問題的資料，點進去逐筆確認</span></span><span class="muted">›</span></button>`:''}
     <section class="card"><div class="row between pad" style="padding-bottom:6px"><h2 class="h2">接下來要繳</h2><button class="btn sm ghost" data-act="gobills">提醒設定</button></div><div class="list">${upHtml}</div></section>
@@ -320,10 +321,10 @@ function renderList(keepFocus){
       <select id="fy" data-title="扣款來源" class="sel${F.src!=='all'?' on':''}"><option value="all">扣款來源：全部</option>${S.jars.map(j=>`<option value="${j.id}"${F.src===j.id?' selected':''}>存錢罐：${esc(j.name)}</option>`).join('')}<option value="${NONE}"${F.src===NONE?' selected':''}>${NONE_LABEL}</option></select>
     </div>
     ${F.period==='custom'?`<div class="inline"><span class="small muted">從</span><input id="ffrom" class="search" type="date" value="${F.from}" style="width:auto"><span class="small muted">到</span><input id="fto" class="search" type="date" value="${F.to}" style="width:auto"></div>`:''}
-    <div class="card sumbar"><div><div class="label">篩選結果合計</div><div class="tiny faint">${rows.length} 筆${F.pick?'・點選項目來勾選':''}</div></div><div class="v num">${money(sum(rows))}</div></div>
-    ${rows.length?Object.entries(groups).map(([m,es])=>`<div><div class="gh"><span>${m.slice(0,4)} 年 ${+m.slice(5)} 月</span><span class="num">${money(sum(es))}</span></div><div class="card list">${es.map(e=>expRow(e,F.pick)).join('')}</div></div>`).join(''):'<div class="card empty">沒有符合條件的開銷</div>'}
+    <div class="card sumbar"><div><div class="label">篩選結果合計</div><div class="tiny faint">${rows.length} 筆${F.pick?'・點選項目來勾選':''}</div></div><div class="v num">${money(-sum(rows))}</div></div>
+    ${rows.length?Object.entries(groups).map(([m,es])=>`<div><div class="gh"><span>${m.slice(0,4)} 年 ${+m.slice(5)} 月</span><span class="num">${money(-sum(es))}</span></div><div class="card list">${es.map(e=>expRow(e,F.pick)).join('')}</div></div>`).join(''):'<div class="card empty">沒有符合條件的開銷</div>'}
   </div>
-  ${F.pick?`<div class="picktray"><div class="card sumbar"><div><div class="tiny muted">已勾選 ${selRows.length} 筆</div><div class="v num">${money(sum(selRows))}</div></div><div class="inline"><button class="btn sm" data-act="pickall">全選這些</button><button class="btn sm" data-act="pickclear">清除</button></div></div></div>`:''}`;
+  ${F.pick?`<div class="picktray"><div class="card sumbar"><div><div class="tiny muted">已勾選 ${selRows.length} 筆</div><div class="v num">${money(-sum(selRows))}</div></div><div class="inline"><button class="btn sm" data-act="pickall">全選這些</button><button class="btn sm" data-act="pickclear">清除</button></div></div></div>`:''}`;
   const q=document.getElementById('q');
   q.oninput=()=>{F.q=q.value;renderList(true)};
   if(keepFocus){q.focus();q.setSelectionRange(q.value.length,q.value.length)}
@@ -350,41 +351,55 @@ function monthsRange(range,first){
   if(range==='all') start=first||end; else start=addMonths(end+'-01',-(range-1)).slice(0,7);
   const out=[];let k=start+'-01';while(k.slice(0,7)<=end){out.push(k.slice(0,7));k=addMonths(k,1)}return out;
 }
+// what can be compared in each mode: [{key, id, name, group?, test(e)}]
+function chartChoices(){
+  if(C.by==='cat') return [{id:'all',name:`全部支出（不含${buyName()}）`,test:e=>notBuy(e)},...S.cats.map(c=>({id:c.id,name:c.name,icon:catIcon(c.id,true),test:e=>catOf(e.sub)?.id===c.id}))];
+  if(C.by==='asset') return [...S.assets.filter(a=>!a.archived||S.expenses.some(e=>e.asset===a.id)).map(a=>({id:a.id,name:assetShort(a.id),icon:assetIcon(a.kind,true),test:e=>e.asset===a.id})),{id:'none',name:'未指定資產',test:e=>!e.asset}];
+  return S.cats.flatMap(c=>c.subs.map(x=>({id:x.id,name:x.name,group:c.name,icon:catIcon(c.id,true,x.id),test:e=>e.sub===x.id})));
+}
 function renderChart(){
-  const pool=paid().filter(e=>matchAsset(e,C.asset));
-  const have=new Set(pool.map(e=>e.sub));
-  const chips=S.cats.map(c=>{const subs=c.subs.filter(s=>have.has(s.id));if(!subs.length)return '';
-    return `<div class="stack" style="gap:6px"><div class="tiny muted" style="font-weight:600">${esc(c.name)}</div><div class="chips">${subs.map(s=>{const on=C.subs.includes(s.id);return `<button class="chip" data-act="csub" data-id="${s.id}" aria-pressed="${on}" style="${on?'color:var(--s'+(C.slot[s.id]+1)+')':''}">${on?`<i style="background:var(--s${C.slot[s.id]+1})"></i>`:''}<span style="color:var(--ink)">${esc(s.name)}</span></button>`}).join('')}</div></div>`}).join('');
-  const series=C.subs.filter(s=>have.has(s)).map(s=>({id:s,name:subName(s),color:`var(--s${C.slot[s]+1})`,m:monthly(pool.filter(e=>e.sub===s),C.mode)}));
+  const pool=paid().filter(e=>C.by==='asset'?(C.cat==='all'||(C.cat.startsWith('c:')?catOf(e.sub)?.id===C.cat.slice(2):e.sub===C.cat)):matchAsset(e,C.asset));
+  const choices=chartChoices(), picks=C.picks[C.by];
+  // first visit to a mode: start with the two biggest in the chosen time range (big purchases left out)
+  if(!picks.length){const from=C.range==='all'?'':addMonths(TODAY.slice(0,7)+'-01',-(C.range-1)),tot=c=>sum(pool.filter(e=>e.date>=from&&c.test(e)));choices.filter(c=>c.id!=='all'&&c.id!=='buy').map(c=>[c,tot(c)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,2).forEach(([c])=>{picks.push(c.id);slotFor(c.id)})}
+  const chip=c=>{const on=picks.includes(c.id),k=C.slot[C.by+':'+c.id];return `<button class="chip" data-act="csub" data-id="${esc(c.id)}" aria-pressed="${on}" style="${on?`border-color:var(--s${k+1})`:''}">${on?`<i style="background:var(--s${k+1})"></i>`:(c.icon||'')}<span style="color:var(--ink)">${esc(c.name)}</span></button>`};
+  const groups=[];choices.forEach(c=>{const g=groups.find(x=>x.name===c.group);if(g)g.items.push(c);else groups.push({name:c.group,items:[c]})});
+  const chips=groups.map(g=>`<div class="stack" style="gap:6px">${g.name?`<div class="tiny muted" style="font-weight:600">${esc(g.name)}</div>`:''}<div class="chips">${g.items.map(chip).join('')}</div></div>`).join('');
+  const series=picks.map(id=>choices.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,name:c.name,color:`var(--s${C.slot[C.by+':'+c.id]+1})`,m:monthly(pool.filter(c.test),C.mode)}));
   const firstAll=series.flatMap(s=>Object.keys(s.m)).sort()[0];
   const months=monthsRange(C.range,firstAll);
   while(months.length>2&&series.every(s=>!(s.m[months.at(-1)]>0)))months.pop();
   series.forEach(s=>{s.v=months.map(k=>s.m[k]||0);s.total=s.v.reduce((a,b)=>a+b,0);s.avg=s.total/months.length;s.max=Math.max(0,...s.v);s.maxAt=months[s.v.indexOf(s.max)]});
-  main.innerHTML=topbar('圖表','同類別每月比較',gearBtn)+`
+  const filterSel=C.by==='asset'?`<select id="ccat" data-title="只看這個類別" class="sel${C.cat!=='all'?' on':''}">${subOptions(C.cat,true)}</select>`:`<select id="ca" data-title="只看這個資產" class="sel${C.asset!=='all'?' on':''}">${assetOptions(C.asset,true)}</select>`;
+  main.innerHTML=topbar('圖表','每月支出比較',gearBtn)+`
   <div class="stack">
     <div class="card pad stack">
+      <div class="seg" role="group" aria-label="比較什麼" style="align-self:flex-start">${[['sub','小類'],['cat','大類'],['asset','資產']].map(([v,l])=>`<button data-act="cby" data-v="${v}" aria-pressed="${C.by===v}">比較${l}</button>`).join('')}</div>
       <div class="filters" style="flex-wrap:wrap">
-        <select id="ca" data-title="資產" class="sel on">${assetOptions(C.asset,true)}</select>
+        ${filterSel}
         <div class="seg" role="group" aria-label="計算方式"><button data-act="cmode" data-v="service" aria-pressed="${C.mode==='service'}">按使用期間</button><button data-act="cmode" data-v="paid" aria-pressed="${C.mode==='paid'}">按付款日</button></div>
         <div class="seg" role="group" aria-label="時間範圍">${[[12,'12 個月'],[24,'24 個月'],['all','全部']].map(([v,l])=>`<button data-act="crange" data-v="${v}" aria-pressed="${C.range==v}">${l}</button>`).join('')}</div>
       </div>
-      <div class="hint">${C.mode==='service'?'有填使用期間的帳單，金額會平均分到它涵蓋的月份。季繳水費和月繳電費可以放在一起比。':'金額算在實際付款的月份，看的是每個月實際花出去多少。'}</div>
-      ${chips||'<div class="empty">這個資產還沒有紀錄</div>'}
-      <div class="hint">最多同時比較 4 項</div>
+      <div class="hint">${C.mode==='service'?'有填使用期間的帳單，金額會平均分到它涵蓋的月份。季繳水費和月繳電費可以放在一起比。':'金額算在實際付款的月份，看的是每個月實際花出去多少。'}圖上畫的是支出的金額大小。</div>
+      ${chips}
+      <div class="hint">點選要比較的項目，最多同時 ${MAXS} 項。</div>
     </div>
     ${series.length?`<div class="card pad stack">
       <div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>
       <div class="chartwrap" id="cw"></div>
     </div>
-    <div class="stats">${series.map(s=>`<div class="card tile"><div class="row"><i style="width:10px;height:10px;border-radius:50%;background:${s.color};display:inline-block"></i><span class="label">${esc(s.name)}</span></div><div class="v num">${money(s.total)}</div><div class="tiny muted">月平均 <span class="num">${money(s.avg)}</span>・最高 <span class="num">${s.maxAt?+s.maxAt.slice(5)+'月':''}</span></div></div>`).join('')}</div>
+    <div class="stats">${series.map(s=>`<div class="card tile"><div class="row"><i style="width:10px;height:10px;border-radius:50%;background:${s.color};display:inline-block;flex:none"></i><span class="label ell">${esc(s.name)}</span></div><div class="v num">${money(-s.total)}</div><div class="tiny muted">月平均 <span class="num">${money(-s.avg)}</span>・最多在 <span class="num">${s.max&&s.maxAt?+s.maxAt.slice(5)+'月':'—'}</span></div></div>`).join('')}</div>
     <div class="card scrollx"><table class="tbl num"><thead><tr><th>月份</th>${series.map(s=>`<th>${esc(s.name)}</th>`).join('')}</tr></thead><tbody>
       ${months.map((k,i)=>({k,i})).reverse().map(({k,i})=>`<tr><td>${k.replace('-','/')}</td>${series.map(s=>{const v=s.v[i],p=i?s.v[i-1]:null;const dlt=p!=null&&p>0&&v>0?(v-p)/p*100:null;
-        return `<td>${v?money(v):'<span class="faint">—</span>'}${dlt!=null&&Math.abs(dlt)>=1?` <span class="${dlt>0?'up':'down'}">${dlt>0?'▲':'▼'}${Math.abs(dlt).toFixed(0)}%</span>`:''}</td>`}).join('')}</tr>`).join('')}
-    </tbody></table></div>`:''}
+        return `<td>${v?money(-v):'<span class="faint">—</span>'}${dlt!=null&&Math.abs(dlt)>=1?` <span class="${dlt>0?'up':'down'}">${dlt>0?'▲':'▼'}${Math.abs(dlt).toFixed(0)}%</span>`:''}</td>`}).join('')}</tr>`).join('')}
+    </tbody></table></div>`:'<div class="card empty">在上面點選要比較的項目</div>'}
   </div>`;
-  document.getElementById('ca').onchange=ev=>{C.asset=ev.target.value;renderChart()};
+  const ca=document.getElementById('ca');if(ca)ca.onchange=ev=>{C.asset=ev.target.value;renderChart()};
+  const cc=document.getElementById('ccat');if(cc)cc.onchange=ev=>{C.cat=ev.target.value;renderChart()};
   if(series.length) drawChart(document.getElementById('cw'),months,series);
 }
+// colours stay with an item while it is picked (lowest free colour)
+function slotFor(id){const used=C.picks[C.by].filter(x=>x!==id).map(x=>C.slot[C.by+':'+x]);const k=C.by+':'+id;if(C.slot[k]==null||used.includes(C.slot[k]))C.slot[k]=[...Array(MAXS).keys()].find(n=>!used.includes(n));return C.slot[k]}
 function niceMax(v){if(v<=0)return 100;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
 function drawChart(el,months,series){
   const W=Math.max(300,el.clientWidth),H=Math.round(Math.min(300,Math.max(210,W*.42))),L=52,R=10,T=10,B=26;
@@ -447,13 +462,14 @@ function requestSheet(jid){
     const $=s=>root.querySelector(s);
     const draw=()=>{
       const items=forecast(jid,months), est=items.filter(i=>!off.has(i.key)).reduce((t,i)=>t+i.total,0), need=Math.max(0,est-bal);
-      $('#estlist').innerHTML=items.map(i=>`<button class="est" data-k="${i.key}"><span class="chk${off.has(i.key)?'':' on'}">${off.has(i.key)?'':ICON.check}</span><span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(i.label)}</span><span class="tiny muted">${i.note}・${i.n} 次 × 約 <span class="num">${money(i.each)}</span></span></span><span class="num" style="font-weight:600">${money(i.total)}</span></button>`).join('')||'<div class="empty">這段時間沒有預估的帳單</div>';
-      $('#calc').innerHTML=`<div class="row between small"><span class="muted">未來 ${months} 個月預估開銷</span><span class="num">${money(est)}</span></div>
-        <div class="row between small"><span class="muted">${bal<0?'加上你已經先墊的':'扣掉罐子裡還有的'}</span><span class="num">${bal<0?'+'+money(-bal):'−'+money(bal)}</span></div>
+      $('#estlist').innerHTML=items.map(i=>`<button class="est" data-k="${i.key}"><span class="chk${off.has(i.key)?'':' on'}">${off.has(i.key)?'':ICON.check}</span><span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(i.label)}</span><span class="tiny muted">${i.note}・${i.n} 次 × 約 <span class="num">${money(-i.each)}</span></span></span><span class="num" style="font-weight:600">${money(-i.total)}</span></button>`).join('')||'<div class="empty">這段時間沒有預估的帳單</div>';
+      $('#calc').innerHTML=`<div class="row between small"><span class="muted">罐子目前餘額</span><span class="num">${money(bal)}</span></div>
+        <div class="row between small"><span class="muted">未來 ${months} 個月預估支出</span><span class="num">${money(-est)}</span></div>
+        <div class="row between small"><span class="muted">兩個加起來</span><span class="num">${money(bal-est)}</span></div>
         <div class="row between" style="border-top:1px solid var(--line);padding-top:8px"><b>這次請款</b><b class="num" style="font-size:20px">${money(need)}</b></div>`;
       $('#reqtxt').textContent=`${j.name}存錢罐（${slash(since[0]?.date||TODAY)} 起）\n\n`+since.map(r=>`${slash(r.date).slice(5)}  ${r.exp?withAsset(fullName(r.exp),r.exp.asset):r.label}  ${money(r.amount,true)}`).join('\n')+
-        `\n\n目前餘額：${money(bal)}${bal<0?'（我先墊付）':''}\n\n未來 ${months} 個月預估：\n`+items.filter(i=>!off.has(i.key)).map(i=>`・${i.label} ${i.n} 次 約 ${money(i.total)}`).join('\n')+
-        `\n預估合計：${money(est)}\n\n這次請款：${money(need)}`;
+        `\n\n目前餘額：${money(bal)}${bal<0?'（我先墊付）':''}\n\n未來 ${months} 個月預估：\n`+items.filter(i=>!off.has(i.key)).map(i=>`・${i.label} ${i.n} 次 約 ${money(-i.total)}`).join('\n')+
+        `\n預估合計：${money(-est)}\n\n這次請款：${money(need)}`;
       root.querySelectorAll('.est').forEach(b=>b.onclick=()=>{off.has(b.dataset.k)?off.delete(b.dataset.k):off.add(b.dataset.k);draw()});
     };
     root.querySelectorAll('#rm [data-m]').forEach(b=>b.onclick=()=>{months=+b.dataset.m;j.months=months;saveCfg();root.querySelectorAll('#rm [data-m]').forEach(x=>x.setAttribute('aria-pressed',x===b));draw()});
@@ -609,11 +625,11 @@ function renderSetup(){
       <div class="hint">只會改金額前面的符號和小數位數，不會換算匯率。</div>
       <div class="card"><div class="srow"><b class="grow">字體</b></div>${Object.entries(FONTS).map(([k,[n,fam]])=>`<button class="item" data-act="font" data-id="${k}" style="font-family:${fam?`'${fam}',`:''}${BASE_UI.replace(/"/g,"'")}">
         <span class="chk${(S.font||'system')===k?' on':''}" style="border-radius:50%">${(S.font||'system')===k?ICON.check:''}</span>
-        <span class="grow"><span style="display:block;font-weight:600">${n}</span><span class="small muted">比記本・十一月電費 ${money(238.68)}・存錢罐</span></span></button>`).join('')}</div>
+        <span class="grow"><span style="display:block;font-weight:600">${n}</span><span class="small muted">比記本・十一月電費 ${money(-238.68)}・存錢罐</span></span></button>`).join('')}</div>
       <div class="card"><div class="srow"><b class="grow">自己的字型檔</b></div>
         ${CUSTOM_FONT?`<button class="item" data-act="font" data-id="custom" style="font-family:'BiledgerCustom',${BASE_UI.replace(/"/g,"'")}">
           <span class="chk${S.font==='custom'?' on':''}" style="border-radius:50%">${S.font==='custom'?ICON.check:''}</span>
-          <span class="grow"><span style="display:block;font-weight:600">${esc(CUSTOM_FONT.name)}</span><span class="small muted">比記本・十一月電費 ${money(238.68)}・存錢罐</span></span></button>`
+          <span class="grow"><span style="display:block;font-weight:600">${esc(CUSTOM_FONT.name)}</span><span class="small muted">比記本・十一月電費 ${money(-238.68)}・存錢罐</span></span></button>`
           :S.font==='custom'?'<div class="srow small muted">你在別的裝置選了自己的字型，這台裝置還沒上傳字型檔，所以先用系統字體。</div>':''}
         <div class="srow"><label class="btn sm"><input type="file" id="fontup" accept=".ttf,.otf,.woff,.woff2" hidden>${CUSTOM_FONT?'換一個字型檔':'上傳字型檔'}</label>${CUSTOM_FONT?'<button class="btn sm ghost" data-act="fontdel">從這台裝置移除</button>':''}<span id="fontmsg" class="tiny muted"></span></div></div>
       <div class="hint">字型檔只存在這台裝置，不會上傳到雲端，所以 iPhone、iPad、Mac 要各自上傳一次。建議把 App 加到主畫面，Safari 才不會在你很久沒打開時清掉它。</div>
@@ -715,8 +731,8 @@ document.addEventListener('click',ev=>{
     newjar:()=>jarForm(), editjar:()=>jarForm(jarOf(id)),
     pinjar:()=>{const j=jarOf(id);j.pin=!j.pin;saveCfg();renderJar();toast(j.pin?'已釘選到首頁':'已從首頁移除')},
     goreview:()=>{setupTab='data';go('setup')}, gobills:()=>{setupTab='bills';go('setup')}, goassets:()=>{setupTab='assets';go('setup')},
-    csub:()=>{const i=C.subs.indexOf(id);if(i>=0){C.subs.splice(i,1);delete C.slot[id]}else{if(C.subs.length>=4){toast('最多同時比較 4 項');return}
-      const used=Object.values(C.slot);C.slot[id]=[0,1,2,3].find(n=>!used.includes(n));C.subs.push(id)}renderChart()},
+    csub:()=>{const p=C.picks[C.by],i=p.indexOf(id);if(i>=0)p.splice(i,1);else{if(p.length>=MAXS){toast(`最多同時比較 ${MAXS} 項`);return}p.push(id);slotFor(id)}renderChart()},
+    cby:()=>{C.by=b.dataset.v;renderChart()},
     cmode:()=>{C.mode=b.dataset.v;renderChart()}, crange:()=>{C.range=b.dataset.v==='all'?'all':+b.dataset.v;renderChart()},
     stab:()=>{setupTab=b.dataset.v;renderSetup()},
     fontdel:async()=>{await IDB.del('font').catch(()=>{});CUSTOM_FONT=null;if(S.font==='custom'){S.font='system';saveCfg()}applyFont(S.font);renderSetup()},

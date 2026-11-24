@@ -4,7 +4,7 @@
   --bg:#f2f4f1; --surface:#ffffff; --surface2:#e8ece7; --ink:#18211c; --muted:#5f6b64; --faint:#8b958f; --line:#dde3dd;
   --accent:#1d6a50; --accent-ink:#ffffff; --accent-soft:#dcece4;
   --neg:#b3392f; --neg-soft:#f7e3e0; --warn:#9a6200; --warn-soft:#f6ecd6; --pos:#1d6a50;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300;
   --shadow:0 1px 2px rgba(20,40,30,.06),0 4px 16px rgba(20,40,30,.05);
   --num:"Plus Jakarta Sans",-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
   --ui:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Noto Sans TC","Plus Jakarta Sans",sans-serif;
@@ -14,12 +14,12 @@
   --bg:#0e1311; --surface:#172019; --surface2:#1f2a24; --ink:#e7eee9; --muted:#9daaa2; --faint:#76827b; --line:#27322c;
   --accent:#5cc49a; --accent-ink:#0b1a13; --accent-soft:#1b3328;
   --neg:#ef8a7f; --neg-soft:#3a1f1c; --warn:#e3b45a; --warn-soft:#352a14; --pos:#5cc49a;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --shadow:none; color-scheme:dark}}
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#2f9b2f; --shadow:none; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0e1311; --surface:#172019; --surface2:#1f2a24; --ink:#e7eee9; --muted:#9daaa2; --faint:#76827b; --line:#27322c;
   --accent:#5cc49a; --accent-ink:#0b1a13; --accent-soft:#1b3328;
   --neg:#ef8a7f; --neg-soft:#3a1f1c; --warn:#e3b45a; --warn-soft:#352a14; --pos:#5cc49a;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --shadow:none; color-scheme:dark}
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#2f9b2f; --shadow:none; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
 body{color:var(--ink);font:15px/1.5 var(--ui);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
@@ -278,3 +278,5 @@ button,label.btn,select,.chip,.tab,.item,.asset,.est{cursor:pointer}
 .ro .grip svg{width:20px;height:20px}
 .ro.dragging{box-shadow:0 8px 24px rgba(0,0,0,.18);position:relative;z-index:2;border-radius:12px}
 .sheet .sh .btn.primary{min-width:58px}
+
+.chip .cic.s{width:18px;height:18px;border-radius:6px;margin-left:-4px}.chip .cic.s svg{width:11px;height:11px}
