@@ -1,6 +1,6 @@
 {
-  "name": "Biledger",
-  "short_name": "Biledger",
+  "name": "Biledger 比記本",
+  "short_name": "比記本",
   "description": "記錄房子和車子的開銷、存錢罐和繳費提醒",
   "lang": "zh-Hant-TW",
   "start_url": "./#home",
