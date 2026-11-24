@@ -4,6 +4,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.4.0/firebas
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, GithubAuthProvider,
   signInWithPopup, signInWithRedirect, getRedirectResult, signOut, linkWithCredential, linkWithPopup,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider,
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
 import {
   initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -33,7 +34,7 @@ try {
 }
 
 const PROVIDERS = { google: () => new GoogleAuthProvider(), github: () => new GithubAuthProvider() };
-const LABEL = { 'google.com': 'Google', 'github.com': 'GitHub' };
+const LABEL = { 'google.com': 'Google', 'github.com': 'GitHub', password: 'Email' };
 let pending = null; // credential waiting to be linked after signing in with the other provider
 
 export const providerLabel = id => LABEL[id] || id;
@@ -71,6 +72,19 @@ export async function linkProvider(kind) {
   catch (e) { throw explain(e); }
 }
 
+export async function emailLogin(email, pw, create) {
+  try { await (create ? createUserWithEmailAndPassword : signInWithEmailAndPassword)(auth, email.trim(), pw); }
+  catch (e) { throw explain(e); }
+}
+export async function resetPassword(email) {
+  try { await sendPasswordResetEmail(auth, email.trim()); } catch (e) { throw explain(e); }
+}
+// lets someone who signed in with Google/GitHub also sign in with email + password
+export async function addPassword(email, pw) {
+  try { await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(email.trim(), pw)); }
+  catch (e) { throw explain(e); }
+}
+
 export const logout = () => signOut(auth);
 
 function explain(e) {
@@ -83,8 +97,17 @@ function explain(e) {
     'auth/credential-already-in-use': '這個帳號已經連結到另一個使用者了。',
     'auth/provider-already-linked': '這種登入方式已經連結過了。',
     'auth/network-request-failed': '連不上網路，請檢查網路後再試一次。',
+    'auth/invalid-credential': 'Email 或密碼不對。',
+    'auth/wrong-password': 'Email 或密碼不對。',
+    'auth/user-not-found': '找不到這個 Email 的帳號，可以按「建立新帳號」。',
+    'auth/invalid-email': 'Email 格式不對。',
+    'auth/missing-password': '請輸入密碼。',
+    'auth/weak-password': '密碼至少要 6 個字。',
+    'auth/email-already-in-use': '這個 Email 已經有帳號了。如果之前是用 Google 或 GitHub 登入，請用那個方式登入，再到「設定 → 帳號與資料」加上密碼。',
+    'auth/too-many-requests': '嘗試太多次了，請稍等一下再試。',
+    'auth/requires-recent-login': '為了安全，請先登出再登入一次，然後再試。',
   };
-  const err = new Error(map[e.code] || `登入失敗（${e.code || e.message}）`);
+  const err = new Error(map[e.code] || `沒有成功（${e.code || e.message}）`);
   err.code = e.code;
   return err;
 }

@@ -213,3 +213,8 @@ body{margin:0}
 .syncdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px}
 .syncdot.off{background:var(--warn)}
 .receipt img{max-width:100%;border-radius:12px;display:block;margin:0 auto}
+
+/* app feel: no text cursor or selection on labels and buttons; fields stay editable */
+body{cursor:default;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable],pre.req,.selectable{-webkit-user-select:text;user-select:text;cursor:auto}
+button,label.btn,select,.chip,.tab,.item,.asset,.est{cursor:pointer}

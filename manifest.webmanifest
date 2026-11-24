@@ -1,7 +1,7 @@
 {
   "name": "Biledger 比記本",
   "short_name": "比記本",
-  "description": "記錄房子和車子的開銷、存錢罐和繳費提醒",
+  "description": "記帳、管理資產和存錢罐，還會提醒你繳費",
   "lang": "zh-Hant-TW",
   "start_url": "./#home",
   "scope": "./",

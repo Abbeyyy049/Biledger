@@ -1,7 +1,7 @@
 # Biledger 比記本
 
-記錄房子和車子的開銷、存錢罐（例如媽媽先放在我這裡的錢）和繳費提醒的網頁 App。
-用 Google 或 GitHub 登入，資料存在 Firebase，iPhone、iPad、Mac 會自動同步。
+記帳的網頁 App：記錄開銷、管理資產（房子、車子等，選填）和存錢罐（預先存好、專門用來付某些開銷的錢），還會提醒你繳費。
+可以用 Google、GitHub 或 Email 登入，資料存在 Firebase，iPhone、iPad、Mac 會自動同步。
 
 網址：https://abbeyyy049.github.io/Biledger/
 
@@ -23,6 +23,7 @@
 1. **Firestore 安全規則**：Firestore Database → 規則，把 `firestore.rules` 的內容整段貼上，按「發布」。
 2. **授權網域**：Authentication → 設定 → 授權網域 → 新增 `abbeyyy049.github.io`。
 3. **Google 登入**：Authentication → 登入方式 → Google → 啟用。
+   **Email 登入**：Authentication → 登入方式 → 電子郵件/密碼 → 啟用（不用開「電子郵件連結」）。
 4. **GitHub 登入**：
    - Authentication → 登入方式 → GitHub → 啟用，複製畫面上的回呼網址（`https://biledger.firebaseapp.com/__/auth/handler`）。
    - GitHub → Settings → Developer settings → OAuth Apps → New OAuth App：

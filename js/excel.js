@@ -14,7 +14,6 @@ function lib() {
 
 const GREEN = 'FF1D6A50', SOFT = 'FFE8F1EC', LINE = 'FFDDE3DD';
 const FONT = 'Arial';
-const MONEY = '$#,##0.00;-$#,##0.00;"-"';
 const DATE = 'yyyy/mm/dd';
 const BACKUP = '_app';
 const utc = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
@@ -27,6 +26,7 @@ const isoOf = v => {
 const val = c => { const v = c?.value; if (v && typeof v === 'object' && !(v instanceof Date)) return 'result' in v ? v.result : v.text ?? (v.richText ? v.richText.map(r => r.text).join('') : ''); return v ?? ''; };
 const txt = c => String(val(c) ?? '').trim();
 const r2 = n => Math.round(n * 100) / 100;
+const q = t => String(t).replace(/"/g, '""');
 
 function header(ws, row, cols) {
   cols.forEach(([h, w], i) => {
@@ -51,9 +51,11 @@ const note = (c, text) => { c.value = text; c.font = { name: FONT, size: 10, col
 export async function exportWorkbook(X) {
   const ExcelJS = await lib();
   const { S, CYC, NONE, NONE_LABEL } = X;
+  const [, sym, dp] = X.cur, num = `"${sym}"#,##0${dp ? '.' + '0'.repeat(dp) : ''}`, MONEY = `${num};-${num};"-"`;
+  const BUY = X.buyName;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Biledger';
-  const aName = id => X.assetOf(id).name;
+  const aName = id => id ? X.assetOf(id).name : null;
   const cName = sub => X.catOf(sub)?.name || '';
   const src = e => e.src === NONE ? NONE_LABEL : (X.jarOf(e.src)?.name || NONE_LABEL);
   const paid = S.expenses.filter(e => e.status === 'paid');
@@ -102,10 +104,10 @@ export async function exportWorkbook(X) {
   }
 
   /* 月度統計 */
-  const cats = S.cats.map(c => c.name), order = cats.filter(c => c !== '購買');
+  const cats = S.cats.map(c => c.name), order = cats.filter(c => c !== BUY);
   const m = wb.addWorksheet('月度統計', { views: [{ state: 'frozen', xSplit: 1, ySplit: 3, showGridLines: false }] });
   titleCell(m.getCell('A1'), '每月花費（按付款日，只算已付）');
-  header(m, 3, [['月份', 11], ...order.map(c => [c, 12]), ['小計（不含購買）', 17], ['購買', 14], ['合計', 14]]);
+  header(m, 3, [['月份', 11], ...order.map(c => [c, 12]), [`小計（不含${BUY}）`, 17], [BUY, 14], ['合計', 14]]);
   const ds = S.expenses.map(e => e.date).sort();
   if (ds.length) {
     let [y, mo] = ds[0].slice(0, 7).split('-').map(Number); const [ey, em] = ds.at(-1).slice(0, 7).split('-').map(Number);
@@ -117,11 +119,11 @@ export async function exportWorkbook(X) {
       const c0 = m.getCell(r, 1); c0.value = `${y}/${String(mo).padStart(2, '0')}`; cellStyle(c0);
       let subtotal = 0;
       order.forEach((name, i) => { const v = r2(inMonth.filter(e => cName(e.sub) === name).reduce((t, e) => t + +e.amount, 0)); subtotal += v;
-        const c = m.getCell(r, i + 2); c.value = { formula: `SUMIFS(${AMT},${rng},${CAT},"${name}",${ST},"已付")`, result: v }; cellStyle(c, MONEY); });
+        const c = m.getCell(r, i + 2); c.value = { formula: `SUMIFS(${AMT},${rng},${CAT},"${q(name)}",${ST},"已付")`, result: v }; cellStyle(c, MONEY); });
       const n = order.length, L = k2 => String.fromCharCode(64 + k2);
-      const buy = r2(inMonth.filter(e => cName(e.sub) === '購買').reduce((t, e) => t + +e.amount, 0));
+      const buy = r2(inMonth.filter(e => cName(e.sub) === BUY).reduce((t, e) => t + +e.amount, 0));
       let c = m.getCell(r, n + 2); c.value = { formula: `SUM(B${r}:${L(n + 1)}${r})`, result: r2(subtotal) }; cellStyle(c, MONEY, { bold: true, soft: true });
-      c = m.getCell(r, n + 3); c.value = { formula: `SUMIFS(${AMT},${rng},${CAT},"購買",${ST},"已付")`, result: buy }; cellStyle(c, MONEY);
+      c = m.getCell(r, n + 3); c.value = { formula: `SUMIFS(${AMT},${rng},${CAT},"${q(BUY)}",${ST},"已付")`, result: buy }; cellStyle(c, MONEY);
       c = m.getCell(r, n + 4); c.value = { formula: `${L(n + 2)}${r}+${L(n + 3)}${r}`, result: r2(subtotal + buy) }; cellStyle(c, MONEY, { bold: true });
     });
   }
@@ -130,7 +132,8 @@ export async function exportWorkbook(X) {
   const y = wb.addWorksheet('年度統計', { views: [{ showGridLines: false }] });
   titleCell(y.getCell('A1'), '每年花費・依資產（按付款日，只算已付）');
   const years = [...new Set(ds.map(d => d.slice(0, 4)))].sort().reverse();
-  const assets = S.assets;
+  // expenses without an asset get their own column
+  const assets = [...S.assets, ...(S.expenses.some(e => !e.asset) ? [{ id: '', name: '未指定資產' }] : [])];
   let row = 3;
   const block = (label, hint, crit, test) => {
     y.getCell(row, 1).value = label; y.getCell(row, 1).font = { name: FONT, size: 12, bold: true };
@@ -141,9 +144,9 @@ export async function exportWorkbook(X) {
       const c0 = y.getCell(r, 1); c0.value = yy; cellStyle(c0);
       let tot = 0;
       assets.forEach((a, i) => {
-        const v = r2(paid.filter(e => e.date.startsWith(yy) && e.asset === a.id && test(e)).reduce((t, e) => t + +e.amount, 0)); tot += v;
+        const v = r2(paid.filter(e => e.date.startsWith(yy) && (e.asset || '') === a.id && test(e)).reduce((t, e) => t + +e.amount, 0)); tot += v;
         const c = y.getCell(r, i + 2);
-        c.value = { formula: `SUMIFS(${AMT},${DT},">="&DATE(${yy},1,1),${DT},"<"&DATE(${+yy + 1},1,1),${AS},"${a.name.replace(/"/g, '""')}",${ST},"已付"${crit})`, result: v };
+        c.value = { formula: `SUMIFS(${AMT},${DT},">="&DATE(${yy},1,1),${DT},"<"&DATE(${+yy + 1},1,1),${AS},"${a.id ? q(a.name) : '='}",${ST},"已付"${crit})`, result: v };
         cellStyle(c, MONEY);
       });
       const n = assets.length, L = String.fromCharCode(65 + n);
@@ -152,9 +155,9 @@ export async function exportWorkbook(X) {
     row += 4 + years.length;
   };
   const once = CYC.once[0];
-  block('每年固定開銷', '週期是每月、每季、每半年或每年的帳單：水電網路、電信、管理費、土地稅、Rego、保險等', `,${CYCR},"<>${once}"`, e => e.cycle !== 'once');
-  block('一次性開銷（不含購買）', '週期是「一次性」的規費、維修等，例如印花稅、FIRB、過戶費、修車', `,${CYCR},"${once}",${CAT},"<>購買"`, e => e.cycle === 'once' && cName(e.sub) !== '購買');
-  block('購買', '買房、買車的訂金和尾款等', `,${CAT},"購買"`, e => cName(e.sub) === '購買');
+  block('每年固定開銷', '週期是每月、每季、每半年或每年的帳單，例如水電網路、電信、管理費、房屋稅、保險', `,${CYCR},"<>${once}"`, e => e.cycle !== 'once');
+  block(`一次性開銷（不含${BUY}）`, '週期是「一次性」的花費，例如維修、規費、印花稅、過戶費', `,${CYCR},"${once}",${CAT},"<>${q(BUY)}"`, e => e.cycle === 'once' && cName(e.sub) !== BUY);
+  block(BUY, '購屋、購車、訂金、家具家電等大筆購置', `,${CAT},"${q(BUY)}"`, e => cName(e.sub) === BUY);
 
   /* 清單 */
   const l = wb.addWorksheet('清單', { views: [{ showGridLines: false }] });
@@ -174,8 +177,8 @@ export async function exportWorkbook(X) {
 
   /* hidden full backup, read back by import */
   const bk = wb.addWorksheet(BACKUP, { state: 'veryHidden' });
-  const cfg = { v: 2 }; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer'].forEach(k => cfg[k] = S[k]);
-  const json = JSON.stringify({ app: 'house-car-ledger', v: 2, cfg, expenses: S.expenses, moves: S.moves });
+  const cfg = { v: S.v || 3 }; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'font'].forEach(k => cfg[k] = S[k]);
+  const json = JSON.stringify({ app: 'house-car-ledger', v: cfg.v, cfg, expenses: S.expenses, moves: S.moves });
   for (let i = 0, k = 1; i < json.length; i += 30000, k++) bk.getCell(k, 1).value = json.slice(i, i + 30000);
 
   const buf = await wb.xlsx.writeBuffer();
@@ -252,4 +255,4 @@ export async function parseWorkbook(file, X) {
   return { cfg, expenses, moves, backup: false };
 }
 
-function pick(S) { const c = {}; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer'].forEach(k => c[k] = S[k]); return c; }
+function pick(S) { const c = {}; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'font'].forEach(k => c[k] = S[k]); return c; }
