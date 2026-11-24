@@ -139,6 +139,19 @@ const buyName=()=>S.cats.find(c=>c.id==='buy')?.name||'購置';
 // asset icons people can pick from; for places, the nickname is shown in lists instead of the long address
 const KINDS=[['house','房子'],['apartment','公寓／大樓'],['land','土地'],['shop','店面／公司'],['car','汽車'],['moto','機車'],['person','家人'],['pet','寵物'],['device','電子設備'],['invest','投資'],['other','其他']];
 const PLACE=['house','apartment','land','shop'];
+const CAT_ICON={life:'<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7M7 7h4M17 3c-1.7 0-3 2.2-3 5.5S15.3 13 17 13v8"/>',util:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  ins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',fee:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/>',
+  buy:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',misc:'<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>',
+  x:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'};
+const SVG=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const SUB_ICON={grocery:'<path d="M4 10h16l-1.5 9h-13zM8 10l3-6M16 10l-3-6M9.5 14v2M14.5 14v2"/>',shopping:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',medical:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',edu:'<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2zM4 20a2 2 0 0 0 2 1h13"/>',fun:'<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 8v1.5M14 11.3v1.4M14 14.5V16"/>',subscr:'<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/>',rent:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',mortgage:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',bodycorp:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>',council:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',homerepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',garden:'<path d="M12 21v-8M12 13c0-4 3-7 8-7 0 4-3 7-8 7zM12 15c0-3-2.5-5.5-7-5.5 0 3 2.5 5.5 7 5.5z"/>',water:'<path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/>',gas:'<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.5 1 2.5 2.5 3 0-3-1-5.5 0-8z"/>',internet:'<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/>',phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',fuel:'<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',parking:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 16V8h3a2.5 2.5 0 0 1 0 5h-3"/>',toll:'<path d="M7 3 4 21M17 3l3 18M12 4v3M12 10.5v3M12 17v3"/>',transit:'<rect x="5" y="3" width="14" height="15" rx="3"/><path d="M5 11h14M8 21v-3M16 21v-3"/><circle cx="8.5" cy="14.5" r=".7"/><circle cx="15.5" cy="14.5" r=".7"/>',service:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',carrepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',rego:'<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h3M13 12h4"/>',caracc:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',license:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.7-2.3 3-2.3s2.5.8 3 2.3M15 10h3M15 13h3"/>',homeins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M9 13.5 12 11l3 2.5V16H9z"/>',carins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',healthins:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',lifeins:'<path d="M3 12a9 9 0 0 1 18 0zM12 12v6a2 2 0 0 0 4 0"/>',stamp:'<path d="M9 13V8a3 3 0 1 1 6 0v5M5 13h14v4H5zM6 21h12"/>',transferfee:'<path d="M4 8h14l-3-3M20 16H6l3 3"/>',legal:'<path d="M12 3v18M8 21h8M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>',firb:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',tax:'<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',deposit:'<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.1 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5v11"/>',furniture:'<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM6 18v2M18 18v2"/>'};
+// coloured category badge: the sub-category's own icon when it has one, else the main category's;
+// categories people add get the tag icon
+const SUB_SAME={food:'life',elec:'util',housebuy:'home',carbuy:'car',other:'misc'};
+function catIcon(id,small,sub){const k=['life','home','util','car','ins','fee','buy','misc'].includes(id)?id:'x';
+  const base=SUB_SAME[sub]||(SUB_ICON[sub]?null:id);
+  const svg=base?(base==='home'?ICON.house:base==='car'?ICON.car:SVG(CAT_ICON[['life','util','ins','fee','buy','misc'].includes(base)?base:'x'])):SVG(SUB_ICON[sub]);return `<span class="cic${small?' s':''}" style="--k:var(--k-${k})">${svg}</span>`}
+const assetIcon=(kind,small)=>`<span class="cic${small?' s':''}" style="--k:var(--muted)">${iconHTML(kind)}</span>`;
 // built-in icon key, or 'u:<id>' for an icon the person uploaded
 function iconHTML(k){if(k?.startsWith('u:')){const ic=(S.icons||[]).find(i=>i.id===k.slice(2));if(ic)return `<img src="${ic.data}" alt="" style="width:70%;height:70%;object-fit:contain">`}return ICON[k]||ICON.other}
 const assetShort=id=>{const a=assetOf(id);return a.nick&&PLACE.includes(a.kind)?a.nick:a.name};
@@ -190,13 +203,13 @@ function forecast(jid,months){
 const main=document.getElementById('main');
 let tab='home';
 const F={asset:'all',cat:'all',period:'year',src:'all',q:'',pick:false,sel:new Set(),from:'',to:''};
-const PERIODS=[['all','全部時間'],['month','本月'],['lastmonth','上個月'],['year','今年'],['lastyear','去年'],['custom','自訂期間…']];
+const PERIODS=[['all','全部時間'],['month','本月'],['m3','近 3 個月'],['year','今年'],['lastyear','去年'],['custom','自訂期間…']];
 // [first day, last day] for the list's time filter; null = no limit
 function periodRange(){
   const y=+TODAY.slice(0,4), som=TODAY.slice(0,7)+'-01', eom=s=>addDays(addMonths(s.slice(0,7)+'-01',1),-1);
   switch(F.period){
     case 'month': return [som,eom(som)];
-    case 'lastmonth': {const a=addMonths(som,-1);return [a,eom(a)]}
+    case 'm3': return [addMonths(som,-2),eom(som)];
     case 'year': return [`${y}-01-01`,`${y}-12-31`];
     case 'lastyear': return [`${y-1}-01-01`,`${y-1}-12-31`];
     case 'custom': return [F.from||'0000-01-01',F.to||'9999-12-31'];
@@ -213,26 +226,26 @@ function assetOptions(sel,withAll){
   const groups=S.folders.map(f=>({f,as:S.assets.filter(a=>a.folder===f.id&&(withAll||!a.archived||a.id===sel))})).filter(g=>g.as.length);
   const label=a=>esc(a.name)+(a.nick&&PLACE.includes(a.kind)?'（'+esc(a.nick)+'）':'');
   groups.forEach(({f,as})=>{
-    if(!withAll){h+=`<optgroup label="${esc(f.name)}">`+as.map(a=>`<option value="${a.id}"${a.id===sel?' selected':''}>${label(a)}</option>`).join('')+`</optgroup>`;return}
+    if(!withAll){h+=`<optgroup label="${esc(f.name)}">`+as.map(a=>`<option value="${a.id}" data-kind="${a.kind}"${a.id===sel?' selected':''}>${label(a)}</option>`).join('')+`</optgroup>`;return}
     // filters: the group is selectable itself and its assets are indented under it (one group: just the assets)
     const sub=groups.length>1;
     if(sub) h+=`<option value="f:${f.id}"${sel==='f:'+f.id?' selected':''}>${esc(f.name)}</option>`;
-    h+=as.map(a=>`<option value="${a.id}"${a.id===sel?' selected':''}>${sub?'　└ ':''}${label(a)}</option>`).join('');});
+    h+=as.map(a=>`<option value="${a.id}" data-kind="${a.kind}"${a.id===sel?' selected':''}>${sub?'　└ ':''}${label(a)}</option>`).join('');});
   if(withAll) h+=`<option value="none"${sel==='none'?' selected':''}>未指定資產</option>`;
   return h;
 }
 function subOptions(sel,withAll){
   let h=withAll?`<option value="all"${sel==='all'?' selected':''}>全部類別</option>`:'';
   S.cats.forEach(c=>{
-    if(withAll){h+=`<option value="c:${c.id}"${sel==='c:'+c.id?' selected':''}>${esc(c.name)}</option>`+c.subs.map(s=>`<option value="${s.id}"${s.id===sel?' selected':''}>　└ ${esc(s.name)}</option>`).join('');return}
-    if(c.subs.length) h+=`<optgroup label="${esc(c.name)}">`+c.subs.map(s=>`<option value="${s.id}"${s.id===sel?' selected':''}>${esc(s.name)}</option>`).join('')+`</optgroup>`;});
+    if(withAll){h+=`<option value="c:${c.id}" data-cat="${c.id}"${sel==='c:'+c.id?' selected':''}>${esc(c.name)}</option>`+c.subs.map(s=>`<option value="${s.id}" data-cat="${c.id}" data-sub="${s.id}"${s.id===sel?' selected':''}>　└ ${esc(s.name)}</option>`).join('');return}
+    if(c.subs.length) h+=`<optgroup label="${esc(c.name)}">`+c.subs.map(s=>`<option value="${s.id}" data-cat="${c.id}" data-sub="${s.id}"${s.id===sel?' selected':''}>${esc(s.name)}</option>`).join('')+`</optgroup>`;});
   return h;
 }
 const srcTag=e=>e.src===NONE?`<span class="src none">${NONE_LABEL}</span>`:`<span class="src">${ICON.jar}${esc(srcLabel(e.src))}</span>`;
 function expRow(e,pick){
   const a=assetOf(e.asset),on=F.sel.has(e.id),per=shortPeriod(e);
   return `<button class="item" data-act="${pick?'toggle':'edit'}" data-id="${e.id}">
-    ${pick?`<span class="chk${on?' on':''}">${on?ICON.check:''}</span>`:`<span class="dot">${iconHTML(a.kind)}</span>`}
+    ${pick?`<span class="chk${on?' on':''}">${on?ICON.check:''}</span>`:catIcon(catOf(e.sub)?.id,false,e.sub)}
     <span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(title(e))}${e.asset?`<span class="muted" style="font-weight:500">・${esc(assetShort(e.asset))}</span>`:''}</span>
       <span class="meta"><span class="tiny muted">${md(e.date)}${per?`・用 ${per}`:''}</span>
         ${e.status==='due'?'<span class="pill due">待繳</span>':''}${srcTag(e)}${e.flag?'<span class="pill neg">待確認</span>':''}</span></span>
@@ -301,10 +314,10 @@ function renderList(keepFocus){
   <div class="stack">
     <input id="q" class="search" type="search" placeholder="搜尋名稱、備註、資產…" value="${esc(F.q)}">
     <div class="filters">
-      <select id="fa" class="sel${F.asset!=='all'?' on':''}">${assetOptions(F.asset,true)}</select>
-      <select id="fc" class="sel${F.cat!=='all'?' on':''}">${subOptions(F.cat,true)}</select>
-      <select id="fp" class="sel${F.period!=='all'?' on':''}">${PERIODS.map(([v,l])=>`<option value="${v}"${F.period===v?' selected':''}>${l}</option>`).join('')}</select>
-      <select id="fy" class="sel${F.src!=='all'?' on':''}"><option value="all">扣款來源：全部</option>${S.jars.map(j=>`<option value="${j.id}"${F.src===j.id?' selected':''}>存錢罐：${esc(j.name)}</option>`).join('')}<option value="${NONE}"${F.src===NONE?' selected':''}>${NONE_LABEL}</option></select>
+      <select id="fa" data-title="資產" class="sel${F.asset!=='all'?' on':''}">${assetOptions(F.asset,true)}</select>
+      <select id="fc" data-title="類別" class="sel${F.cat!=='all'?' on':''}">${subOptions(F.cat,true)}</select>
+      <select id="fp" data-title="時間" class="sel${F.period!=='all'?' on':''}">${PERIODS.map(([v,l])=>`<option value="${v}"${F.period===v?' selected':''}>${l}</option>`).join('')}</select>
+      <select id="fy" data-title="扣款來源" class="sel${F.src!=='all'?' on':''}"><option value="all">扣款來源：全部</option>${S.jars.map(j=>`<option value="${j.id}"${F.src===j.id?' selected':''}>存錢罐：${esc(j.name)}</option>`).join('')}<option value="${NONE}"${F.src===NONE?' selected':''}>${NONE_LABEL}</option></select>
     </div>
     ${F.period==='custom'?`<div class="inline"><span class="small muted">從</span><input id="ffrom" class="search" type="date" value="${F.from}" style="width:auto"><span class="small muted">到</span><input id="fto" class="search" type="date" value="${F.to}" style="width:auto"></div>`:''}
     <div class="card sumbar"><div><div class="label">篩選結果合計</div><div class="tiny faint">${rows.length} 筆${F.pick?'・點選項目來勾選':''}</div></div><div class="v num">${money(sum(rows))}</div></div>
@@ -351,7 +364,7 @@ function renderChart(){
   <div class="stack">
     <div class="card pad stack">
       <div class="filters" style="flex-wrap:wrap">
-        <select id="ca" class="sel on">${assetOptions(C.asset,true)}</select>
+        <select id="ca" data-title="資產" class="sel on">${assetOptions(C.asset,true)}</select>
         <div class="seg" role="group" aria-label="計算方式"><button data-act="cmode" data-v="service" aria-pressed="${C.mode==='service'}">按使用期間</button><button data-act="cmode" data-v="paid" aria-pressed="${C.mode==='paid'}">按付款日</button></div>
         <div class="seg" role="group" aria-label="時間範圍">${[[12,'12 個月'],[24,'24 個月'],['all','全部']].map(([v,l])=>`<button data-act="crange" data-v="${v}" aria-pressed="${C.range==v}">${l}</button>`).join('')}</div>
       </div>
@@ -496,8 +509,8 @@ function expenseForm(e,preset){
   openSheet(isNew?'記一筆':'編輯開銷',`<div class="form">
     <div class="fgroup"><div class="amountin"><span>${cur()[1]}</span><input id="xa" type="number" inputmode="decimal" placeholder="${zeroText()}" value="${e.amount}"></div><div class="hint" id="xlast" style="text-align:center;padding-bottom:12px"></div></div>
     <div class="fgroup">
-      <div class="f"><label for="xs">類別</label><select id="xs">${subOptions(e.sub)}</select></div>
-      <div class="f"><label for="xas">資產</label><select id="xas">${assetOptions(e.asset)}</select></div>
+      <div class="f"><label for="xs">類別</label><select id="xs" data-layout="grid" data-title="選擇類別">${subOptions(e.sub)}</select></div>
+      <div class="f"><label for="xas">資產</label><select id="xas" data-title="選擇資產">${assetOptions(e.asset)}</select></div>
       <div class="f"><label for="xn">名稱</label><input id="xn" type="text" value="${esc(e.name)}" placeholder="選填，不填就顯示類別"></div>
     </div>
     <div class="fgroup">
@@ -524,7 +537,7 @@ function expenseForm(e,preset){
     const $=s=>root.querySelector(s);
     const sync=()=>{e.sub=$('#xs').value;e.asset=$('#xas').value;e.ps=$('#xps').value;e.pe=$('#xpe').value;e.date=$('#xd').value;
       const t=timing(e);$('#xtime').innerHTML=t?`這筆是 <b>${t}</b>（付款日在使用期間${t==='預付'?'之前':t==='後付'?'之後':'中間'}）`:'選填。有填的話圖表可以把金額平均分到每個月';
-      const last=lastOf(e.asset,e.sub,e.id);$('#xlast').innerHTML=last?`上次：<b class="num">${money(last.amount)}</b>・${slash(last.date)}`:'';};
+      const last=lastOf(e.asset,e.sub,e.id);$('#xlast').innerHTML=last?`上次：<b class="num">${money(last.amount)}</b>・${slash(last.date)}`:'';syncSelects(root);};
     const setSrc=k=>{if(!srcs.some(s=>s[0]===k))return;e.src=k;root.querySelectorAll('[data-src]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.src===k))};
     const prefill=()=>{ if(!isNew) return; const last=lastOf($('#xas').value,$('#xs').value);
       if(last){ $('#xc').value=last.cycle; if(S.methods.includes(last.method))$('#xm').value=last.method; setSrc(last.src);
@@ -614,6 +627,7 @@ function renderSetup(){
       <div class="hint">連結多種登入方式後，用哪一種登入都會看到同一份資料。</div>
       <div class="card pad stack" style="gap:10px"><b>Excel</b><div class="small muted">匯出的檔案有：開銷明細、每個存錢罐、月度統計、年度統計、清單。檔案裡也藏了一份完整備份，之後可以用「匯入」還原。</div>
         <div class="inline"><button class="btn primary sm" data-act="exportx">匯出 Excel</button><label class="btn sm"><input type="file" id="impfile" accept=".xlsx" hidden>匯入 Excel</label></div><div id="impwrap"></div></div>
+      <div class="card pad stack" style="gap:8px;border-color:color-mix(in srgb,var(--neg) 35%,var(--line))"><b style="color:var(--neg)">清除所有資料</b><div class="small muted">刪除這個帳號裡所有的開銷、存錢罐、收據、圖示和設定。刪除後沒辦法復原。</div><div><button class="btn danger sm" data-act="clearall">清除所有資料…</button></div></div>
       ${flags.length?`<div class="card"><div class="srow"><b class="grow">匯入資料確認（${flags.length}）</b></div>
       ${flags.map(e=>`<button class="item" data-act="edit" data-id="${e.id}"><span class="grow"><b class="ell" style="display:block">${esc(withAsset(title(e),e.asset))}</b><span class="tiny muted">${esc(e.flag)}</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}`;
   }
@@ -650,7 +664,7 @@ function openSheet(t,html,mount){
   mount&&mount(r);
 }
 function closeSheet(){document.getElementById('sheetroot').innerHTML=''}
-document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeSheet()});
+document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(document.getElementById('pickroot').innerHTML)closePicker();else closeSheet()});
 
 /* ---------- boot, routing & events ---------- */
 
@@ -702,6 +716,7 @@ document.addEventListener('click',ev=>{
     logout:()=>B.logout(),
     linkp:()=>B.linkProvider(id).then(()=>{toast('已連結');renderSetup()}).catch(e=>toast(e.message)),
     exportx:()=>doExport(),
+    clearall:()=>clearAllForm(),
     font:()=>{S.font=id;applyFont(id);saveCfg();renderSetup()},
     addpw:()=>passwordForm(),
   })[act]?.();
@@ -798,6 +813,21 @@ function deleteAsset(a){
     };
   });
 }
+function clearAllForm(){
+  const WORD='清除';
+  openSheet('清除所有資料',`<div class="form">
+    <div class="card pad stack" style="gap:8px"><b>這會永久刪除：</b><div class="small muted">・${S.expenses.length} 筆開銷和它們的收據<br>・${S.jars.length} 個存錢罐和 ${S.moves.length} 筆存入／調整<br>・${S.assets.length} 個資產、類別、固定帳單、自己的圖示和所有設定</div>
+      <div class="small" style="color:var(--neg)">刪除後沒辦法復原。建議先匯出一份 Excel 備份，之後還可以匯入還原。</div>
+      <div><button class="btn sm" id="cbak">先匯出 Excel 備份</button></div></div>
+    <div class="fgroup"><div class="f"><label for="cword">確認</label><input id="cword" type="text" autocomplete="off" placeholder="請輸入「${WORD}」"></div></div>
+    <button class="btn danger" id="cgo" disabled>永久清除所有資料</button></div>`,root=>{
+    const w=root.querySelector('#cword'),go=root.querySelector('#cgo');
+    root.querySelector('#cbak').onclick=()=>doExport();
+    w.oninput=()=>{go.disabled=w.value.trim()!==WORD};
+    go.onclick=async()=>{if(w.value.trim()!==WORD)return;go.disabled=true;go.textContent='清除中…';
+      try{await B.clearAll();closeSheet();toast('已清除所有資料')}catch(e){go.disabled=false;go.textContent='永久清除所有資料';toast('清除失敗：'+(e.code||e.message))}};
+  });
+}
 function passwordForm(){
   openSheet('設定密碼',`<div class="form"><div class="fgroup">
     <div class="f"><label for="pe">Email</label><input id="pe" type="email" autocomplete="email" value="${esc(USER?.email||'')}"></div>
@@ -826,6 +856,37 @@ async function importFlow(file,wrap){
     try{await B.replaceAll(clean(d.cfg),clean(d.expenses),clean(d.moves));toast('匯入完成');go('home')}
     catch(e){console.error(e);wrap.innerHTML=`<div class="proto">匯入失敗：${esc(e.code||e.message)}</div>`}};
 }
+
+/* ---------- selector buttons + picker sheet (replace the browser's dropdowns) ---------- */
+const CHEV='<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+const OKMARK='<svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>';
+const optText=o=>o.textContent.replace(/^　└ /,'');
+const optVisual=(o,small)=>o.dataset.cat?catIcon(o.dataset.cat,small,o.dataset.sub):o.dataset.kind?assetIcon(o.dataset.kind,small):'';
+function paintSel(sel){const b=sel._fx;if(!b)return;const o=sel.options[sel.selectedIndex];
+  b.className='fsel '+sel.className;b.innerHTML=(o?optVisual(o,true):'')+`<span class="ell">${esc(o?optText(o):'')}</span>${CHEV}`}
+function enhance(root=document){root.querySelectorAll('select:not([data-fx])').forEach(sel=>{
+  sel.dataset.fx='1';const b=document.createElement('button');b.type='button';b.setAttribute('aria-haspopup','listbox');
+  sel._fx=b;sel.hidden=true;sel.after(b);b.onclick=()=>openPicker(sel);paintSel(sel)})}
+const syncSelects=root=>root.querySelectorAll('select[data-fx]').forEach(paintSel);
+new MutationObserver(()=>enhance()).observe(document.body,{childList:true,subtree:true});
+function openPicker(sel){
+  const title=sel.dataset.title||document.querySelector(`label[for="${sel.id}"]`)?.textContent||sel.getAttribute('aria-label')||'選擇';
+  const grid=sel.dataset.layout==='grid', parts=[];
+  [...sel.children].forEach(n=>{if(n.tagName==='OPTGROUP')parts.push({head:n.label,opts:[...n.children]});else{const last=parts.at(-1);if(last&&!last.head)last.opts.push(n);else parts.push({opts:[n]})}});
+  const row=o=>{const kid=o.textContent.startsWith('　└ '),grp=/^[cf]:/.test(o.value);
+    return `<button class="po${kid?' kid':''}${grp?' grp':''}" data-i="${o.index}" role="option" aria-selected="${o.selected}">${kid?'':optVisual(o)}<span class="lbl">${esc(optText(o))}</span>${o.selected?OKMARK:''}</button>`};
+  const tile=o=>`<button class="pt" data-i="${o.index}" role="option" aria-selected="${o.selected}" style="${o.dataset.cat?`--k:var(--k-${['life','home','util','car','ins','fee','buy','misc'].includes(o.dataset.cat)?o.dataset.cat:'x'})`:''}">${optVisual(o)}<span>${esc(optText(o))}</span></button>`;
+  const body=parts.map(p=>(p.head?`<div class="ph">${esc(p.head)}</div>`:'')+(grid?`<div class="pgrid">${p.opts.map(tile).join('')}</div>`:`<div class="plist">${p.opts.map(row).join('')}</div>`)).join('');
+  const search=!grid&&sel.options.length>12?'<input class="search psearch" type="search" placeholder="搜尋…" aria-label="搜尋選項">':'';
+  const root=document.getElementById('pickroot');
+  root.innerHTML=`<div class="scrim" id="pscrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div><div class="sh"><button class="btn sm ghost" id="pkx">取消</button><h3>${esc(title)}</h3><span style="width:58px"></span></div>${search}<div class="pk" role="listbox">${body}</div></div></div>`;
+  root.querySelector('#pscrim').addEventListener('click',ev=>{if(ev.target.id==='pscrim')closePicker()});
+  root.querySelector('#pkx').onclick=closePicker;
+  root.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{sel.selectedIndex=+b.dataset.i;paintSel(sel);closePicker();sel.dispatchEvent(new Event('change',{bubbles:true}))});
+  const q=root.querySelector('.psearch');if(q)q.oninput=()=>{const t=q.value.trim().toLowerCase();root.querySelectorAll('.po').forEach(b=>b.hidden=!!t&&!b.textContent.toLowerCase().includes(t))};
+  root.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'center'});
+}
+function closePicker(){document.getElementById('pickroot').innerHTML=''}
 
 /* ---------- sign-in gate ---------- */
 const gate=document.getElementById('gate'), shell=document.getElementById('shell');

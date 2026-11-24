@@ -142,6 +142,14 @@ export const putReceipt = (id, r) => setDoc(doc(col('receipts'), id), r);
 export const delReceipt = id => deleteDoc(doc(col('receipts'), id));
 export async function getReceipt(id) { const s = await getDoc(doc(col('receipts'), id)); return s.exists() ? s.data() : null; }
 
+// Delete every record and the settings of the signed-in person.
+export async function clearAll() {
+  const refs = [];
+  for (const name of ['expenses', 'moves', 'receipts', 'icons']) (await getDocs(col(name))).forEach(d => refs.push(d.ref));
+  refs.push(cfgRef());
+  for (let i = 0; i < refs.length; i += 400) { const b = writeBatch(db); refs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit(); }
+}
+
 // Replace everything (used by Excel import). Receipts are kept.
 export async function replaceAll(cfg, expenses, moves) {
   const ops = [];
