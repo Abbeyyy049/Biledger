@@ -261,3 +261,20 @@ button,label.btn,select,.chip,.tab,.item,.asset,.est{cursor:pointer}
 .pk .pt:active,.pk .po:active{opacity:.7}
 .pk .psearch{margin-bottom:4px}
 @media (min-width:560px){.pk .pgrid{grid-template-columns:repeat(5,1fr)}}
+
+/* ---------- settings: tiles, chips, undo toast, drag to reorder ---------- */
+.subgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.stile{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:14px;text-align:left;min-width:0}
+.stile>.ell{flex:1;min-width:0}
+.stile.add,.chip.addchip{border-style:dashed;color:var(--accent);font-weight:600;justify-content:center}
+.stile:active,.chip:active{opacity:.7}
+.billrow{display:flex;align-items:center;gap:8px;padding-right:14px;border-top:1px solid var(--line)}
+.billrow:first-child{border-top:0}
+.billrow .item{border-top:0;flex:1;min-width:0}
+.toast.undo{pointer-events:auto;display:flex;align-items:center;gap:14px;padding:8px 8px 8px 16px}
+.toast.undo button{border:0;border-radius:9px;background:color-mix(in srgb,var(--bg) 18%,transparent);color:var(--bg);font-weight:700;padding:6px 12px}
+.ro{background:var(--surface);gap:12px}
+.ro .grip{width:36px;height:36px;display:grid;place-items:center;color:var(--faint);touch-action:none;cursor:grab;flex:none;margin-right:-8px}
+.ro .grip svg{width:20px;height:20px}
+.ro.dragging{box-shadow:0 8px 24px rgba(0,0,0,.18);position:relative;z-index:2;border-radius:12px}
+.sheet .sh .btn.primary{min-width:58px}
