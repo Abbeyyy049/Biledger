@@ -633,7 +633,7 @@ function billForm(){
 const xctx=()=>({S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid});
 async function doExport(){
   toast('正在產生 Excel…');
-  try{const blob=await exportWorkbook(xctx());const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`房車帳本_${TODAY}.xlsx`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+  try{const blob=await exportWorkbook(xctx());const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Biledger_${TODAY}.xlsx`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
   catch(e){console.error(e);toast('匯出失敗：'+e.message)}
 }
 async function importFlow(file,wrap){
@@ -656,7 +656,7 @@ const GICON={google:'<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3
   github:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.7.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg>'};
 function showGate(html){gate.hidden=false;shell.hidden=true;closeSheet();gate.innerHTML=`<div class="card">${html}</div>`}
 function showLogin(err){
-  showGate(`${GLOGO}<h1>房車帳本</h1><div class="small muted">記錄房子和車子的開銷、存錢罐和繳費提醒。資料存在雲端，iPhone、iPad、Mac 都能用。</div>
+  showGate(`${GLOGO}<h1>Biledger</h1><div class="small muted">記錄房子和車子的開銷、存錢罐和繳費提醒。資料存在雲端，iPhone、iPad、Mac 都能用。</div>
     ${err?`<div class="err">${esc(err)}</div>`:''}
     <button class="btn ghost" data-login="google">${GICON.google}用 Google 登入</button>
     <button class="btn ghost" data-login="github">${GICON.github}用 GitHub 登入</button>`);

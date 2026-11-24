@@ -52,7 +52,7 @@ export async function exportWorkbook(X) {
   const ExcelJS = await lib();
   const { S, CYC, NONE, NONE_LABEL } = X;
   const wb = new ExcelJS.Workbook();
-  wb.creator = '房車帳本';
+  wb.creator = 'Biledger';
   const aName = id => X.assetOf(id).name;
   const cName = sub => X.catOf(sub)?.name || '';
   const src = e => e.src === NONE ? NONE_LABEL : (X.jarOf(e.src)?.name || NONE_LABEL);
@@ -191,7 +191,7 @@ export async function parseWorkbook(file, X) {
   if (bk) {
     let s = ''; for (let k = 1; k <= bk.rowCount; k++) s += txt(bk.getCell(k, 1)) ? String(val(bk.getCell(k, 1))) : '';
     const d = JSON.parse(s);
-    if (d.app !== 'house-car-ledger') throw new Error('不是房車帳本匯出的備份');
+    if (d.app !== 'house-car-ledger') throw new Error('不是 Biledger 匯出的備份');
     return { cfg: { ...X.defaultConfig(), ...d.cfg }, expenses: d.expenses || [], moves: d.moves || [], backup: true };
   }
 
