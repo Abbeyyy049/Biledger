@@ -112,12 +112,12 @@ function explain(e) {
   return err;
 }
 
-/* ---------- database: users/{uid}/meta/config, expenses/{id}, moves/{id}, receipts/{id} ---------- */
+/* ---------- database: users/{uid}/meta/config, expenses/{id}, moves/{id}, receipts/{id}, icons/{id} ---------- */
 let uid = null;
 const col = name => collection(db, 'users', uid, name);
 const cfgRef = () => doc(db, 'users', uid, 'meta', 'config');
 
-export function subscribe(userId, { onConfig, onExpenses, onMoves, onSync }) {
+export function subscribe(userId, { onConfig, onExpenses, onMoves, onIcons, onSync }) {
   uid = userId;
   const offs = [
     onSnapshot(cfgRef(), { includeMetadataChanges: true }, s => {
@@ -126,6 +126,7 @@ export function subscribe(userId, { onConfig, onExpenses, onMoves, onSync }) {
     }, e => onConfig(null, false, e)),
     onSnapshot(col('expenses'), s => onExpenses(s.docs.map(d => d.data()))),
     onSnapshot(col('moves'), s => onMoves(s.docs.map(d => d.data()))),
+    onSnapshot(col('icons'), s => onIcons?.(s.docs.map(d => ({ id: d.id, ...d.data() })))),
   ];
   return () => offs.forEach(f => f());
 }
@@ -135,6 +136,8 @@ export const putExpense = e => setDoc(doc(col('expenses'), e.id), e);
 export const delExpense = id => Promise.all([deleteDoc(doc(col('expenses'), id)), deleteDoc(doc(col('receipts'), id))]);
 export const putMove = m => setDoc(doc(col('moves'), m.id), m);
 export const delMove = id => deleteDoc(doc(col('moves'), id));
+export const putIcon = (id, ic) => setDoc(doc(col('icons'), id), ic);
+export const delIcon = id => deleteDoc(doc(col('icons'), id));
 export const putReceipt = (id, r) => setDoc(doc(col('receipts'), id), r);
 export const delReceipt = id => deleteDoc(doc(col('receipts'), id));
 export async function getReceipt(id) { const s = await getDoc(doc(col('receipts'), id)); return s.exists() ? s.data() : null; }

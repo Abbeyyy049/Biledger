@@ -53,8 +53,34 @@ const FONTS={system:['系統預設','',''],noto:['思源黑體','Noto Sans TC','
 const BASE_UI='-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Noto Sans TC","Plus Jakarta Sans",sans-serif';
 function loadFonts(keys){const q=keys.map(k=>FONTS[k]?.[2]).filter(Boolean);if(!q.length)return;const href=`https://fonts.googleapis.com/css2?${q.map(x=>'family='+x).join('&')}&display=swap`;
   if(document.querySelector(`link[href="${href}"]`))return;const l=document.createElement('link');l.rel='stylesheet';l.href=href;document.head.appendChild(l)}
-function applyFont(k){const f=FONTS[k]||FONTS.system;loadFonts([k]);document.documentElement.style.setProperty('--ui',f[1]?`"${f[1]}",${BASE_UI}`:BASE_UI);try{localStorage.setItem('font',k)}catch(e){}}
+// A font file someone uploads stays in this device's browser storage (IndexedDB) only.
+const IDB={open(){return this.p??=new Promise((ok,no)=>{const r=indexedDB.open('biledger',1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})},
+  async run(mode,fn){const d=await this.open();return new Promise((ok,no)=>{const q=fn(d.transaction('files',mode).objectStore('files'));q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
+  get(k){return this.run('readonly',s=>s.get(k))},set(k,v){return this.run('readwrite',s=>s.put(v,k))},del(k){return this.run('readwrite',s=>s.delete(k))}};
+let CUSTOM_FONT=null; // {name} once the file on this device is loaded
+async function loadCustomFont(){
+  try{const rec=await IDB.get('font');if(!rec)return false;
+    const ff=new FontFace('BiledgerCustom',await rec.blob.arrayBuffer());await ff.load();document.fonts.add(ff);CUSTOM_FONT={name:rec.name};return true}
+  catch(e){return false}
+}
+function applyFont(k){
+  try{localStorage.setItem('font',k)}catch(e){}
+  if(k==='custom'){
+    const use=()=>document.documentElement.style.setProperty('--ui',`"BiledgerCustom",${BASE_UI}`);
+    if(CUSTOM_FONT)use();else loadCustomFont().then(ok=>{if(ok)use();else document.documentElement.style.setProperty('--ui',BASE_UI)});
+    return;
+  }
+  const f=FONTS[k]||FONTS.system;loadFonts([k]);document.documentElement.style.setProperty('--ui',f[1]?`"${f[1]}",${BASE_UI}`:BASE_UI);
+}
 try{applyFont(localStorage.getItem('font')||'system')}catch(e){}
+loadCustomFont().then(ok=>{if(ok&&tab==='setup')scheduleRender()});
+async function uploadFont(file){
+  if(!/\.(ttf|otf|woff2?)$/i.test(file.name))throw new Error('請選 .ttf、.otf、.woff 或 .woff2 字型檔');
+  try{await new FontFace('BiledgerTest',await file.arrayBuffer()).load()}catch(e){throw new Error('讀不到這個字型檔，可能檔案壞了或格式不支援')}
+  await IDB.set('font',{name:file.name.replace(/\.\w+$/,''),blob:file});
+  navigator.storage?.persist?.().catch(()=>{});
+  CUSTOM_FONT=null;await loadCustomFont();
+}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const sum=a=>a.reduce((t,e)=>t+(+e.amount||0),0);
@@ -96,7 +122,7 @@ function migrateV2(st){
   const expenses=st.expenses.map(e=>({...e,sub:subOf(e.sub,e.asset),asset:fixAsset(e.asset),method:mm(e.method)}));
   return {cfg,expenses};
 }
-let S={...defaultConfig(),expenses:[],moves:[]};
+let S={...defaultConfig(),expenses:[],moves:[],icons:[]};
 const clean=o=>JSON.parse(JSON.stringify(o));
 const fail=e=>{console.error(e);toast('沒有存到雲端：'+(e.code||e.message))};
 let cfgTimer, cfgDirty=false;
@@ -113,6 +139,8 @@ const buyName=()=>S.cats.find(c=>c.id==='buy')?.name||'購置';
 // asset icons people can pick from; for places, the nickname is shown in lists instead of the long address
 const KINDS=[['house','房子'],['apartment','公寓／大樓'],['land','土地'],['shop','店面／公司'],['car','汽車'],['moto','機車'],['person','家人'],['pet','寵物'],['device','電子設備'],['invest','投資'],['other','其他']];
 const PLACE=['house','apartment','land','shop'];
+// built-in icon key, or 'u:<id>' for an icon the person uploaded
+function iconHTML(k){if(k?.startsWith('u:')){const ic=(S.icons||[]).find(i=>i.id===k.slice(2));if(ic)return `<img src="${ic.data}" alt="" style="width:70%;height:70%;object-fit:contain">`}return ICON[k]||ICON.other}
 const assetShort=id=>{const a=assetOf(id);return a.nick&&PLACE.includes(a.kind)?a.nick:a.name};
 const jarOf=id=>S.jars.find(j=>j.id===id);
 const srcLabel=id=>id===NONE?NONE_LABEL:(jarOf(id)?.name||'已刪除的罐子');
@@ -185,7 +213,7 @@ const srcTag=e=>e.src===NONE?`<span class="src none">${NONE_LABEL}</span>`:`<spa
 function expRow(e,pick){
   const a=assetOf(e.asset),on=F.sel.has(e.id),per=shortPeriod(e);
   return `<button class="item" data-act="${pick?'toggle':'edit'}" data-id="${e.id}">
-    ${pick?`<span class="chk${on?' on':''}">${on?ICON.check:''}</span>`:`<span class="dot">${ICON[a.kind]||ICON.other}</span>`}
+    ${pick?`<span class="chk${on?' on':''}">${on?ICON.check:''}</span>`:`<span class="dot">${iconHTML(a.kind)}</span>`}
     <span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(title(e))}${e.asset?`<span class="muted" style="font-weight:500">・${esc(assetShort(e.asset))}</span>`:''}</span>
       <span class="meta"><span class="tiny muted">${md(e.date)}${per?`・用 ${per}`:''}</span>
         ${e.status==='due'?'<span class="pill due">待繳</span>':''}${srcTag(e)}${e.flag?'<span class="pill neg">待確認</span>':''}</span></span>
@@ -217,7 +245,7 @@ function renderHome(){
         <span class="amt num muted">${u.kind==='due'?'':'約 '}${money(u.amount)}</span></button>`}).join(''):'<div class="empty">接下來 45 天沒有要繳的帳單</div>';
   const groups=S.folders.map(f=>({f,as:S.assets.filter(a=>a.folder===f.id&&!a.archived)})).filter(g=>g.as.length);
   const card=a=>{const es=paid().filter(e=>e.asset===a.id);const last=es.sort((x,z)=>x.date<z.date?1:-1)[0];
-    return `<button class="asset" data-act="assetlist" data-id="${a.id}"><span class="row"><span class="dot" style="width:30px;height:30px">${ICON[a.kind]||ICON.other}</span><span class="tiny muted ell grow">${esc(a.nick||'')}</span></span>
+    return `<button class="asset" data-act="assetlist" data-id="${a.id}"><span class="row"><span class="dot" style="width:30px;height:30px">${iconHTML(a.kind)}</span><span class="tiny muted ell grow">${esc(a.nick||'')}</span></span>
       <span class="nm">${esc(a.name)}</span><span class="v num">${money0(sum(es.filter(e=>notBuy(e)&&e.date.startsWith(y))))}</span><span class="tiny faint">今年・${last?'最近 '+md(last.date)+' '+esc(subName(last.sub)):'還沒有紀錄'}</span></button>`};
   const folders=groups.length?groups.map(g=>`<div>${groups.length>1?`<div class="gh" style="padding-top:0"><span>${esc(g.f.name)}</span><span class="num">${money0(sum(ops.filter(e=>e.date.startsWith(y)&&g.as.some(a=>a.id===e.asset))))}／今年</span></div>`:''}<div class="agrid">${g.as.map(card).join('')}</div></div>`).join('')
     :`<div class="card empty">還沒有資產。<br>房子、車子或任何想分開記帳的東西都可以設成資產，這是選填的。<br><button class="btn sm ghost" style="margin-top:8px" data-act="goassets">新增資產</button></div>`;
@@ -517,7 +545,7 @@ function renderSetup(){
   let body='';
   if(setupTab==='assets'){
     body=S.folders.map(f=>`<div class="card"><div class="srow"><input type="text" value="${esc(f.name)}" data-edit="folder" data-id="${f.id}" style="font-weight:700" aria-label="分組名稱"><span class="tiny faint">分組</span>${S.folders.length>1?delBtn('delfolder',f.id,'刪除分組'):''}</div>
-      ${S.assets.filter(a=>a.folder===f.id).map(a=>`<div class="srow" style="flex-wrap:wrap;padding-left:20px;${a.archived?'opacity:.5':''}"><button class="dot" data-act="pickicon" data-id="${a.id}" aria-label="換圖示" title="換圖示" style="width:34px;height:34px;border:1.5px dashed var(--faint)">${ICON[a.kind]||ICON.other}</button>
+      ${S.assets.filter(a=>a.folder===f.id).map(a=>`<div class="srow" style="flex-wrap:wrap;padding-left:20px;${a.archived?'opacity:.5':''}"><button class="dot" data-act="pickicon" data-id="${a.id}" aria-label="換圖示" title="換圖示" style="width:34px;height:34px;border:1.5px dashed var(--faint)">${iconHTML(a.kind)}</button>
         <span class="stack" style="gap:0;flex:1 1 170px;min-width:0"><input type="text" value="${esc(a.name)}" data-edit="asset" data-id="${a.id}" aria-label="資產名稱"><input type="text" value="${esc(a.nick||'')}" placeholder="暱稱（選填）" data-edit="nick" data-id="${a.id}" class="small" style="color:var(--muted)" aria-label="暱稱"></span>
         <span class="inline" style="margin-left:auto"><select class="sel" data-edit="move" data-id="${a.id}" aria-label="移到分組" style="padding-block:4px;font-size:13px">${S.folders.map(x=>`<option value="${x.id}"${x.id===a.folder?' selected':''}>${esc(x.name)}</option>`).join('')}</select>
         <button class="btn sm ghost" data-act="archive" data-id="${a.id}">${a.archived?'恢復':'封存'}</button>${delBtn('delasset',a.id,'刪除資產')}</span></div>`).join('')}
@@ -546,7 +574,15 @@ function renderSetup(){
       <div class="card"><div class="srow"><b class="grow">字體</b></div>${Object.entries(FONTS).map(([k,[n,fam]])=>`<button class="item" data-act="font" data-id="${k}" style="font-family:${fam?`'${fam}',`:''}${BASE_UI.replace(/"/g,"'")}">
         <span class="chk${(S.font||'system')===k?' on':''}" style="border-radius:50%">${(S.font||'system')===k?ICON.check:''}</span>
         <span class="grow"><span style="display:block;font-weight:600">${n}</span><span class="small muted">比記本・十一月電費 ${money(238.68)}・存錢罐</span></span></button>`).join('')}</div>
-      <div class="hint">字體會在每台裝置上同步。第一次換字體時要下載字型，可能要等一兩秒。</div>`;
+      <div class="card"><div class="srow"><b class="grow">自己的字型檔</b></div>
+        ${CUSTOM_FONT?`<button class="item" data-act="font" data-id="custom" style="font-family:'BiledgerCustom',${BASE_UI.replace(/"/g,"'")}">
+          <span class="chk${S.font==='custom'?' on':''}" style="border-radius:50%">${S.font==='custom'?ICON.check:''}</span>
+          <span class="grow"><span style="display:block;font-weight:600">${esc(CUSTOM_FONT.name)}</span><span class="small muted">比記本・十一月電費 ${money(238.68)}・存錢罐</span></span></button>`
+          :S.font==='custom'?'<div class="srow small muted">你在別的裝置選了自己的字型，這台裝置還沒上傳字型檔，所以先用系統字體。</div>':''}
+        <div class="srow"><label class="btn sm"><input type="file" id="fontup" accept=".ttf,.otf,.woff,.woff2" hidden>${CUSTOM_FONT?'換一個字型檔':'上傳字型檔'}</label>${CUSTOM_FONT?'<button class="btn sm ghost" data-act="fontdel">從這台裝置移除</button>':''}<span id="fontmsg" class="tiny muted"></span></div></div>
+      <div class="hint">字型檔只存在這台裝置，不會上傳到雲端，所以 iPhone、iPad、Mac 要各自上傳一次。建議把 App 加到主畫面，Safari 才不會在你很久沒打開時清掉它。</div>
+      <div class="card"><div class="srow"><b class="grow">我的圖示</b><label class="btn sm"><input type="file" id="icup2" accept="image/svg+xml,image/png,image/jpeg,image/webp" multiple hidden>＋ 上傳</label></div>
+        ${(S.icons||[]).map(ic=>`<div class="srow"><span class="dot" style="width:34px;height:34px">${iconHTML('u:'+ic.id)}</span><span class="grow">${esc(ic.name)}</span>${delBtn('delicon',ic.id,'刪除圖示')}</div>`).join('')||'<div class="srow small muted">還沒有自己的圖示。上傳後，在「資產」點圖示就可以選。</div>'}</div>`;
   } else {
     const flags=S.expenses.filter(e=>e.flag), u=USER||{}, linked=(u.providerData||[]).map(p=>p.providerId);
     body=`<div class="card"><div class="srow"><span class="grow"><b>${esc(u.displayName||u.email||'已登入')}</b><span class="tiny muted" style="display:block">${esc(u.email||'')}</span></span><button class="btn sm ghost" data-act="logout">登出</button></div>
@@ -560,6 +596,9 @@ function renderSetup(){
   }
   main.innerHTML=topbar('設定','',`<button class="iconbtn" data-tab="home" aria-label="回首頁">${ICON.x}</button>`)+`<div class="stack"><div class="seg" role="tablist" style="align-self:flex-start">${tabs.map(([k,l])=>`<button data-act="stab" data-v="${k}" aria-pressed="${setupTab===k}">${l}</button>`).join('')}</div>${body}</div>`;
   const imp=document.getElementById('impfile');if(imp)imp.onchange=ev=>{const f=ev.target.files[0];if(f)importFlow(f,document.getElementById('impwrap'))};
+  const fu=document.getElementById('fontup');if(fu)fu.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;document.getElementById('fontmsg').textContent='讀取中…';
+    try{await uploadFont(f);S.font='custom';applyFont('custom');saveCfg();toast('已套用字型');renderSetup()}catch(e){document.getElementById('fontmsg').textContent='';toast(e.message)}};
+  const iu=document.getElementById('icup2');if(iu)iu.onchange=async ev=>{if(await uploadIcons(ev.target.files))renderSetup()};
 }
 function setupEdit(el){
   const id=el.dataset.id,v=el.value.trim(),k=el.dataset.edit;
@@ -622,6 +661,8 @@ document.addEventListener('click',ev=>{
     newfolder:()=>{S.folders.push({id:uid('f'),name:'新分組'});saveCfg();renderSetup()},
     delfolder:()=>{if(S.assets.some(a=>a.folder===id)){toast('這個分組裡還有資產，先把資產移到別組');return}S.folders=S.folders.filter(f=>f.id!==id);saveCfg();renderSetup()},
     newasset:()=>{S.assets.push({id:uid('a'),name:'新資產',nick:'',folder:id,kind:'house'});saveCfg();renderSetup()},
+    fontdel:async()=>{await IDB.del('font').catch(()=>{});CUSTOM_FONT=null;if(S.font==='custom'){S.font='system';saveCfg()}applyFont(S.font);renderSetup()},
+    delicon:()=>{S.icons=(S.icons||[]).filter(i=>i.id!==id);B.delIcon(id).catch(fail);renderSetup()},
     pickicon:()=>iconPicker(S.assets.find(a=>a.id===id)),
     delasset:()=>deleteAsset(S.assets.find(a=>a.id===id)),
     archive:()=>{const a=S.assets.find(a=>a.id===id);a.archived=!a.archived;saveCfg();renderSetup()},
@@ -697,10 +738,30 @@ function billForm(){
 }
 const xctx=()=>({S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,cur:cur(),buyName:buyName()});
 function iconPicker(a){
-  openSheet('選擇圖示',`<div class="stats" style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr))">${KINDS.map(([k,l])=>`<button class="card pad stack" data-kind="${k}" style="align-items:center;gap:6px;${a.kind===k?'border-color:var(--accent);color:var(--accent)':''}"><span class="dot">${ICON[k]}</span><span class="small">${l}</span></button>`).join('')}</div>
-    <div class="hint" style="margin-top:12px">房子、公寓、土地、店面這幾種，列表裡會顯示暱稱，不會顯示完整地址。</div>`,root=>{
+  const tile=(k,l)=>`<button class="card pad stack" data-kind="${k}" style="align-items:center;gap:6px;${a.kind===k?'border-color:var(--accent);color:var(--accent)':''}"><span class="dot">${iconHTML(k)}</span><span class="small ell" style="max-width:100%">${esc(l)}</span></button>`;
+  const grid=`style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr))"`;
+  openSheet('選擇圖示',`<div class="stats" ${grid}>${KINDS.map(([k,l])=>tile(k,l)).join('')}</div>
+    <div class="hint" style="margin-top:8px">房子、公寓、土地、店面這幾種，列表裡會顯示暱稱，不會顯示完整地址。</div>
+    <div class="gh">我的圖示</div>
+    ${(S.icons||[]).length?`<div class="stats" ${grid}>${S.icons.map(ic=>tile('u:'+ic.id,ic.name)).join('')}</div>`:''}
+    <label class="btn ghost" style="margin-top:10px;width:100%"><input type="file" id="icup" accept="image/svg+xml,image/png,image/jpeg,image/webp" multiple hidden>＋ 上傳自己的圖示</label>
+    <div class="hint" style="margin-top:6px">可以選 SVG、PNG 或 JPG，一次選好幾個也可以。上傳後所有裝置都看得到；在「設定 → 偏好」可以刪除。</div>`,root=>{
+    root.querySelector('#icup').onchange=async ev=>{const n=await uploadIcons(ev.target.files);if(n){closeSheet();iconPicker(a)}};
     root.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{a.kind=b.dataset.kind;saveCfg();closeSheet();renderSetup()});
   });
+}
+async function readIcon(f){
+  const asData=blob=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=no;r.readAsDataURL(blob)});
+  if(f.type==='image/svg+xml'){if(f.size>150000)throw new Error(`${f.name} 太大了（SVG 上限 150 KB）`);return asData(f)}
+  const img=await createImageBitmap(f).catch(()=>{throw new Error(`讀不到 ${f.name}`)});
+  const c=document.createElement('canvas');c.width=c.height=128;const k=Math.min(128/img.width,128/img.height);
+  c.getContext('2d').drawImage(img,(128-img.width*k)/2,(128-img.height*k)/2,img.width*k,img.height*k);return c.toDataURL('image/png');
+}
+async function uploadIcons(files){
+  let n=0;
+  for(const f of files){try{const data=await readIcon(f);const id=uid('i');const ic={name:f.name.replace(/\.\w+$/,''),data};
+    S.icons=[...(S.icons||[]),{id,...ic}];await B.putIcon(id,ic);n++}catch(e){toast(e.message)}}
+  if(n)toast(`已加入 ${n} 個圖示`);return n;
 }
 function deleteAsset(a){
   const used=S.expenses.filter(e=>e.asset===a.id);
@@ -805,6 +866,7 @@ B.onUser((user,err)=>{
     },
     onExpenses:list=>{S.expenses=list;got.exp=true;tryMigrate();scheduleRender()},
     onMoves:list=>{S.moves=list;got.mov=true;tryMigrate();scheduleRender()},
+    onIcons:list=>{S.icons=list;scheduleRender()},
     onSync:(ok,cache)=>{SYNCED=ok;if(tab==='home'&&booted){const el=document.querySelector('.top .sub');if(el)el.innerHTML=syncLabel()}},
   });
 });
