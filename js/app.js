@@ -189,20 +189,18 @@ function forecast(jid,months){
 /* ---------- ui helpers ---------- */
 const main=document.getElementById('main');
 let tab='home';
-const F={asset:'all',cat:'all',period:'year',src:'all',q:'',pick:false,sel:new Set(),month:'',from:'',to:''};
-const PERIODS=[['all','全部時間'],['month','本月'],['lastmonth','上個月'],['m3','近 3 個月'],['m6','近 6 個月'],['m12','近 12 個月'],['year','今年'],['lastyear','去年'],['pickmonth','指定月份…'],['custom','自訂期間…']];
+const F={asset:'all',cat:'all',period:'year',src:'all',q:'',pick:false,sel:new Set(),from:'',to:''};
+const PERIODS=[['all','全部時間'],['month','本月'],['lastmonth','上個月'],['year','今年'],['lastyear','去年'],['custom','自訂期間…']];
 // [first day, last day] for the list's time filter; null = no limit
 function periodRange(){
   const y=+TODAY.slice(0,4), som=TODAY.slice(0,7)+'-01', eom=s=>addDays(addMonths(s.slice(0,7)+'-01',1),-1);
   switch(F.period){
     case 'month': return [som,eom(som)];
     case 'lastmonth': {const a=addMonths(som,-1);return [a,eom(a)]}
-    case 'm3': case 'm6': case 'm12': return [addMonths(som,-(+F.period.slice(1)-1)),eom(som)];
     case 'year': return [`${y}-01-01`,`${y}-12-31`];
     case 'lastyear': return [`${y-1}-01-01`,`${y-1}-12-31`];
-    case 'pickmonth': return F.month?[F.month+'-01',eom(F.month+'-01')]:null;
     case 'custom': return [F.from||'0000-01-01',F.to||'9999-12-31'];
-    default: return /^\d{4}$/.test(F.period)?[`${F.period}-01-01`,`${F.period}-12-31`]:null;
+    default: return null;
   }
 }
 const C={asset:'all',subs:['elec','water'],slot:{elec:0,water:1},mode:'service',range:12};
@@ -296,7 +294,7 @@ function filtered(){
     return true;}).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
 }
 function renderList(keepFocus){
-  const rows=filtered(), years=[...new Set(S.expenses.map(e=>e.date.slice(0,4)))].sort().reverse();
+  const rows=filtered();
   const groups={}; rows.forEach(e=>{(groups[e.date.slice(0,7)]??=[]).push(e)});
   const selRows=S.expenses.filter(e=>F.sel.has(e.id));
   main.innerHTML=topbar('明細',`${rows.length} 筆`,`<button class="iconbtn" data-act="pickmode" aria-pressed="${F.pick}" aria-label="勾選計算" style="${F.pick?'background:var(--accent);color:var(--accent-ink);border-color:var(--accent)':''}">${ICON.pick}</button>${gearBtn}`)+`
@@ -305,10 +303,9 @@ function renderList(keepFocus){
     <div class="filters">
       <select id="fa" class="sel${F.asset!=='all'?' on':''}">${assetOptions(F.asset,true)}</select>
       <select id="fc" class="sel${F.cat!=='all'?' on':''}">${subOptions(F.cat,true)}</select>
-      <select id="fp" class="sel${F.period!=='all'?' on':''}">${[...PERIODS,...years.map(y=>[y,y+' 年'])].map(([v,l])=>`<option value="${v}"${F.period===v?' selected':''}>${l}</option>`).join('')}</select>
+      <select id="fp" class="sel${F.period!=='all'?' on':''}">${PERIODS.map(([v,l])=>`<option value="${v}"${F.period===v?' selected':''}>${l}</option>`).join('')}</select>
       <select id="fy" class="sel${F.src!=='all'?' on':''}"><option value="all">扣款來源：全部</option>${S.jars.map(j=>`<option value="${j.id}"${F.src===j.id?' selected':''}>存錢罐：${esc(j.name)}</option>`).join('')}<option value="${NONE}"${F.src===NONE?' selected':''}>${NONE_LABEL}</option></select>
     </div>
-    ${F.period==='pickmonth'?`<div class="inline"><span class="small muted">月份</span><input id="fmon" class="search" type="month" value="${F.month}" style="width:auto"></div>`:''}
     ${F.period==='custom'?`<div class="inline"><span class="small muted">從</span><input id="ffrom" class="search" type="date" value="${F.from}" style="width:auto"><span class="small muted">到</span><input id="fto" class="search" type="date" value="${F.to}" style="width:auto"></div>`:''}
     <div class="card sumbar"><div><div class="label">篩選結果合計</div><div class="tiny faint">${rows.length} 筆${F.pick?'・點選項目來勾選':''}</div></div><div class="v num">${money(sum(rows))}</div></div>
     ${rows.length?Object.entries(groups).map(([m,es])=>`<div><div class="gh"><span>${m.slice(0,4)} 年 ${+m.slice(5)} 月</span><span class="num">${money(sum(es))}</span></div><div class="card list">${es.map(e=>expRow(e,F.pick)).join('')}</div></div>`).join(''):'<div class="card empty">沒有符合條件的開銷</div>'}
@@ -319,10 +316,9 @@ function renderList(keepFocus){
   if(keepFocus){q.focus();q.setSelectionRange(q.value.length,q.value.length)}
   [['fa','asset'],['fc','cat'],['fy','src']].forEach(([id,k])=>document.getElementById(id).onchange=ev=>{F[k]=ev.target.value;renderList()});
   document.getElementById('fp').onchange=ev=>{F.period=ev.target.value;
-    if(F.period==='pickmonth'&&!F.month)F.month=TODAY.slice(0,7);
     if(F.period==='custom'&&!F.from){F.from=TODAY.slice(0,7)+'-01';F.to=TODAY}
     renderList()};
-  [['fmon','month'],['ffrom','from'],['fto','to']].forEach(([id,k])=>{const el=document.getElementById(id);if(el)el.onchange=()=>{F[k]=el.value;renderList()}});
+  [['ffrom','from'],['fto','to']].forEach(([id,k])=>{const el=document.getElementById(id);if(el)el.onchange=()=>{F[k]=el.value;renderList()}});
 }
 
 /* ---------- chart ---------- */
