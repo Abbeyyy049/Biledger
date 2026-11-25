@@ -95,10 +95,11 @@ const DEFAULT_CATS=[
   {id:'fee',name:'稅費規費',subs:[['stamp','印花稅／契稅'],['transferfee','過戶登記費'],['legal','律師／代書費'],['firb','政府規費'],['tax','其他稅金']]},
   {id:'buy',name:'購置',subs:[['housebuy','購屋'],['carbuy','購車'],['deposit','訂金'],['furniture','家具家電']]},
   {id:'misc',name:'其他',subs:[['other','其他']]},
+  {id:'income',name:'收入',kind:'in',subs:[['salary','薪資'],['rentin','租金收入'],['interest','利息／股息'],['refund','退款'],['gift','紅包／贈與'],['otherin','其他收入']]},
 ];
 const CFG_KEYS=['folders','assets','cats','methods','fields','jars','bills','buffer','currency','font'];
 function defaultConfig(){
-  return {v:3,folders:[{id:'f_me',name:'個人'}],assets:[],
+  return {v:4,folders:[{id:'f_me',name:'個人'}],assets:[],
     cats:DEFAULT_CATS.map(c=>({...c,subs:c.subs.map(([id,name])=>({id,name}))})),
     methods:['現金 Cash','信用卡 Credit Card','簽帳金融卡 Debit Card','銀行轉帳 Bank Transfer','自動扣款 Direct Debit','行動支付 Mobile Pay'],
     fields:[],jars:[],bills:[],buffer:0,currency:guessCurrency(),font:'system'};
@@ -116,7 +117,7 @@ function migrateV2(st){
   const METH={'銀行轉帳':'銀行轉帳 Bank Transfer','轉帳':'銀行轉帳 Bank Transfer','簽帳金融卡':'簽帳金融卡 Debit Card','信用卡':'信用卡 Credit Card','現金':'現金 Cash','自動扣款':'自動扣款 Direct Debit'};
   const mm=m=>METH[m]||m;
   const dropNone=st.assets.some(a=>a.id==='a_none'), fixAsset=a=>dropNone&&a==='a_none'?'':a;
-  const cfg={v:3};CFG_KEYS.forEach(k=>cfg[k]=clean(st[k]??defaultConfig()[k]));
+  const cfg={v:4};CFG_KEYS.forEach(k=>cfg[k]=clean(st[k]??defaultConfig()[k]));
   Object.assign(cfg,{cats,methods:[...new Set(st.methods.map(mm))],assets:st.assets.filter(a=>!(dropNone&&a.id==='a_none')),
     bills:st.bills.map(b=>({...b,asset:fixAsset(b.asset),sub:subOf(b.sub,b.asset)})),currency:'AUD',font:st.font||'system'});
   const expenses=st.expenses.map(e=>({...e,sub:subOf(e.sub,e.asset),asset:fixAsset(e.asset),method:mm(e.method)}));
@@ -127,7 +128,7 @@ const clean=o=>JSON.parse(JSON.stringify(o));
 const fail=e=>{console.error(e);toast('沒有存到雲端：'+(e.code||e.message))};
 let cfgTimer, cfgDirty=false;
 // settings changes are batched for 300 ms; until written, incoming copies must not overwrite them
-function saveCfg(){cfgDirty=true;clearTimeout(cfgTimer);cfgTimer=setTimeout(()=>{cfgDirty=false;const c={v:3};CFG_KEYS.forEach(k=>c[k]=S[k]);B.saveConfig(clean(c)).catch(fail)},300)}
+function saveCfg(){cfgDirty=true;clearTimeout(cfgTimer);cfgTimer=setTimeout(()=>{cfgDirty=false;const c={v:4};CFG_KEYS.forEach(k=>c[k]=S[k]);B.saveConfig(clean(c)).catch(fail)},300)}
 
 const subMap=()=>{const m={};S.cats.forEach(c=>c.subs.forEach(s=>m[s.id]={...s,cat:c}));return m};
 const subName=id=>subMap()[id]?.name||'未分類';
@@ -142,15 +143,16 @@ const PLACE=['house','apartment','land','shop'];
 const CAT_ICON={life:'<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7M7 7h4M17 3c-1.7 0-3 2.2-3 5.5S15.3 13 17 13v8"/>',util:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   ins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',fee:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/>',
   buy:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',misc:'<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>',
+  income:'<path d="M12 3v11m0 0-4-4m4 4 4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
   x:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'};
 const SVG=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-const SUB_ICON={grocery:'<path d="M4 10h16l-1.5 9h-13zM8 10l3-6M16 10l-3-6M9.5 14v2M14.5 14v2"/>',shopping:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',medical:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',edu:'<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2zM4 20a2 2 0 0 0 2 1h13"/>',fun:'<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 8v1.5M14 11.3v1.4M14 14.5V16"/>',subscr:'<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/>',rent:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',mortgage:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',bodycorp:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>',council:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',homerepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',garden:'<path d="M12 21v-8M12 13c0-4 3-7 8-7 0 4-3 7-8 7zM12 15c0-3-2.5-5.5-7-5.5 0 3 2.5 5.5 7 5.5z"/>',water:'<path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/>',gas:'<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.5 1 2.5 2.5 3 0-3-1-5.5 0-8z"/>',internet:'<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/>',phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',fuel:'<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',parking:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 16V8h3a2.5 2.5 0 0 1 0 5h-3"/>',toll:'<path d="M7 3 4 21M17 3l3 18M12 4v3M12 10.5v3M12 17v3"/>',transit:'<rect x="5" y="3" width="14" height="15" rx="3"/><path d="M5 11h14M8 21v-3M16 21v-3"/><circle cx="8.5" cy="14.5" r=".7"/><circle cx="15.5" cy="14.5" r=".7"/>',service:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',carrepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',rego:'<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h3M13 12h4"/>',caracc:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',license:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.7-2.3 3-2.3s2.5.8 3 2.3M15 10h3M15 13h3"/>',homeins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M9 13.5 12 11l3 2.5V16H9z"/>',carins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',healthins:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',lifeins:'<path d="M3 12a9 9 0 0 1 18 0zM12 12v6a2 2 0 0 0 4 0"/>',stamp:'<path d="M9 13V8a3 3 0 1 1 6 0v5M5 13h14v4H5zM6 21h12"/>',transferfee:'<path d="M4 8h14l-3-3M20 16H6l3 3"/>',legal:'<path d="M12 3v18M8 21h8M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>',firb:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',tax:'<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',deposit:'<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.1 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5v11"/>',furniture:'<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM6 18v2M18 18v2"/>'};
+const SUB_ICON={salary:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',rentin:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',interest:'<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',refund:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/>',gift:'<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13M12 8c-2-3-5-4-5-1.5S10 8 12 8zm0 0c2-3 5-4 5-1.5S14 8 12 8z"/>',otherin:'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',grocery:'<path d="M4 10h16l-1.5 9h-13zM8 10l3-6M16 10l-3-6M9.5 14v2M14.5 14v2"/>',shopping:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',medical:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',edu:'<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2zM4 20a2 2 0 0 0 2 1h13"/>',fun:'<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 8v1.5M14 11.3v1.4M14 14.5V16"/>',subscr:'<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/>',rent:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',mortgage:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',bodycorp:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>',council:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',homerepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',garden:'<path d="M12 21v-8M12 13c0-4 3-7 8-7 0 4-3 7-8 7zM12 15c0-3-2.5-5.5-7-5.5 0 3 2.5 5.5 7 5.5z"/>',water:'<path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/>',gas:'<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.5 1 2.5 2.5 3 0-3-1-5.5 0-8z"/>',internet:'<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/>',phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',fuel:'<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',parking:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 16V8h3a2.5 2.5 0 0 1 0 5h-3"/>',toll:'<path d="M7 3 4 21M17 3l3 18M12 4v3M12 10.5v3M12 17v3"/>',transit:'<rect x="5" y="3" width="14" height="15" rx="3"/><path d="M5 11h14M8 21v-3M16 21v-3"/><circle cx="8.5" cy="14.5" r=".7"/><circle cx="15.5" cy="14.5" r=".7"/>',service:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',carrepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',rego:'<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h3M13 12h4"/>',caracc:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',license:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.7-2.3 3-2.3s2.5.8 3 2.3M15 10h3M15 13h3"/>',homeins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M9 13.5 12 11l3 2.5V16H9z"/>',carins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',healthins:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',lifeins:'<path d="M3 12a9 9 0 0 1 18 0zM12 12v6a2 2 0 0 0 4 0"/>',stamp:'<path d="M9 13V8a3 3 0 1 1 6 0v5M5 13h14v4H5zM6 21h12"/>',transferfee:'<path d="M4 8h14l-3-3M20 16H6l3 3"/>',legal:'<path d="M12 3v18M8 21h8M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>',firb:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',tax:'<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',deposit:'<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.1 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5v11"/>',furniture:'<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM6 18v2M18 18v2"/>'};
 // coloured category badge: the sub-category's own icon when it has one, else the main category's;
 // categories people add get the tag icon
 const SUB_SAME={food:'life',elec:'util',housebuy:'home',carbuy:'car',other:'misc'};
-function catIcon(id,small,sub){const k=['life','home','util','car','ins','fee','buy','misc'].includes(id)?id:'x';
+function catIcon(id,small,sub){const k=['life','home','util','car','ins','fee','buy','misc','income'].includes(id)?id:'x';
   const base=SUB_SAME[sub]||(SUB_ICON[sub]?null:id);
-  const svg=base?(base==='home'?ICON.house:base==='car'?ICON.car:SVG(CAT_ICON[['life','util','ins','fee','buy','misc'].includes(base)?base:'x'])):SVG(SUB_ICON[sub]);return `<span class="cic${small?' s':''}" style="--k:var(--k-${k})">${svg}</span>`}
+  const svg=base?(base==='home'?ICON.house:base==='car'?ICON.car:SVG(CAT_ICON[['life','util','ins','fee','buy','misc','income'].includes(base)?base:'x'])):SVG(SUB_ICON[sub]);return `<span class="cic${small?' s':''}" style="--k:var(--k-${k})">${svg}</span>`}
 const assetIcon=(kind,small)=>`<span class="cic${small?' s':''}" style="--k:var(--muted)">${iconHTML(kind)}</span>`;
 // built-in icon key, or 'u:<id>' for an icon the person uploaded
 function iconHTML(k){if(k?.startsWith('u:')){const ic=(S.icons||[]).find(i=>i.id===k.slice(2));if(ic)return `<img src="${ic.data}" alt="" style="width:70%;height:70%;object-fit:contain">`}return ICON[k]||ICON.other}
@@ -165,10 +167,17 @@ const fullName=e=>e.name||(subName(e.sub)+(e.ps&&e.pe?' '+shortPeriod(e):' '+md(
 function timing(e){if(!e.ps||!e.pe||!e.date)return '';if(e.date<=e.ps)return '預付';if(e.date>=e.pe)return '後付';return '期間中';}
 const paid=()=>S.expenses.filter(e=>e.status==='paid');
 const notBuy=e=>catOf(e.sub)?.id!=='buy';
+// money in or out is decided by the category: categories marked kind 'in' are income
+const isInSub=sub=>catOf(sub)?.kind==='in';
+const isIn=e=>isInSub(e.sub);
+const sv=e=>isIn(e)?+e.amount:-e.amount;            // signed: income +, spending −
+const net=list=>list.reduce((t,e)=>t+sv(e),0);
+const spent=list=>sum(list.filter(e=>!isIn(e)));
+const earned=list=>sum(list.filter(isIn));
 
 function jarLedger(jid){
   const rows=[...S.moves.filter(m=>m.jar===jid).map(m=>({date:m.date,amount:m.kind==='in'?+m.amount:-m.amount,label:m.note||(m.kind==='in'?'存入':'調整'),mv:m})),
-    ...paid().filter(e=>e.src===jid).map(e=>({date:e.date,amount:-e.amount,label:fullName(e),exp:e}))];
+    ...paid().filter(e=>e.src===jid).map(e=>({date:e.date,amount:sv(e),label:fullName(e),exp:e}))];
   rows.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(b.amount>0)-(a.amount>0));
   let bal=0; rows.forEach(r=>{bal+=r.amount;r.bal=bal}); return rows;
 }
@@ -192,17 +201,18 @@ function upcoming(){
 function forecast(jid,months){
   const end=addMonths(TODAY,months), items=[];
   upcoming().filter(u=>u.src===jid).forEach(u=>{
-    if(u.kind==='due'){items.push({key:'d'+u.exp.id,label:withAsset(title(u.exp),u.asset),n:1,each:u.amount,total:u.amount,note:'已記待繳'});return}
+    const sg=isInSub(u.sub)?1:-1;
+    if(u.kind==='due'){items.push({key:'d'+u.exp.id,label:withAsset(title(u.exp),u.asset),n:1,each:sg*u.amount,total:sg*u.amount,note:'已記待繳'});return}
     const step=CYC[u.bill.cycle][1];let d=u.date,n=0;while(d<=end){n++;d=addMonths(d,step)}
-    if(n) items.push({key:u.bill.id,label:withAsset(subName(u.sub),u.asset),n,each:u.avg,total:u.avg*n,note:CYC[u.bill.cycle][0]});
+    if(n) items.push({key:u.bill.id,label:withAsset(subName(u.sub),u.asset),n,each:sg*u.avg,total:sg*u.avg*n,note:CYC[u.bill.cycle][0]});
   });
-  return items.sort((a,b)=>b.total-a.total);
+  return items.sort((a,b)=>Math.abs(b.total)-Math.abs(a.total));
 }
 
 /* ---------- ui helpers ---------- */
 const main=document.getElementById('main');
 let tab='home';
-const F={asset:'all',cat:'all',period:'year',src:'all',q:'',pick:false,sel:new Set(),from:'',to:''};
+const F={asset:'all',cat:'all',period:'year',src:'all',flow:'all',q:'',pick:false,sel:new Set(),from:'',to:''};
 const PERIODS=[['all','全部時間'],['month','本月'],['m3','近 3 個月'],['year','今年'],['lastyear','去年'],['custom','自訂期間…']];
 // [first day, last day] for the list's time filter; null = no limit
 function periodRange(){
@@ -235,14 +245,14 @@ function assetOptions(sel,withAll){
   if(withAll) h+=`<option value="none"${sel==='none'?' selected':''}>未指定資產</option>`;
   return h;
 }
-function subOptions(sel,withAll){
+function subOptions(sel,withAll,kind){
   let h=withAll?`<option value="all"${sel==='all'?' selected':''}>全部類別</option>`:'';
-  S.cats.forEach(c=>{
+  S.cats.filter(c=>!kind||(c.kind==='in')===(kind==='in')).forEach(c=>{
     if(withAll){h+=`<option value="c:${c.id}" data-cat="${c.id}"${sel==='c:'+c.id?' selected':''}>${esc(c.name)}</option>`+c.subs.map(s=>`<option value="${s.id}" data-cat="${c.id}" data-sub="${s.id}"${s.id===sel?' selected':''}>　└ ${esc(s.name)}</option>`).join('');return}
     if(c.subs.length) h+=`<optgroup label="${esc(c.name)}">`+c.subs.map(s=>`<option value="${s.id}" data-cat="${c.id}" data-sub="${s.id}"${s.id===sel?' selected':''}>${esc(s.name)}</option>`).join('')+`</optgroup>`;});
   return h;
 }
-const srcTag=e=>e.src===NONE?`<span class="src none">${NONE_LABEL}</span>`:`<span class="src">${ICON.jar}${esc(srcLabel(e.src))}</span>`;
+const srcTag=e=>e.src===NONE?(isIn(e)?'':`<span class="src none">${NONE_LABEL}</span>`):`<span class="src">${ICON.jar}${esc(srcLabel(e.src))}</span>`;
 function expRow(e,pick){
   const a=assetOf(e.asset),on=F.sel.has(e.id),per=shortPeriod(e);
   return `<button class="item" data-act="${pick?'toggle':'edit'}" data-id="${e.id}">
@@ -250,7 +260,7 @@ function expRow(e,pick){
     <span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(title(e))}${e.asset?`<span class="muted" style="font-weight:500">・${esc(assetShort(e.asset))}</span>`:''}</span>
       <span class="meta"><span class="tiny muted">${md(e.date)}${per?`・用 ${per}`:''}</span>
         ${e.status==='due'?'<span class="pill due">待繳</span>':''}${srcTag(e)}${e.flag?'<span class="pill neg">待確認</span>':''}</span></span>
-    <span class="amt num">${money(-e.amount)}</span></button>`;
+    <span class="amt num${isIn(e)?' pos':''}">${money(sv(e),true)}</span></button>`;
 }
 function jarCard(j,mini){
   const bal=jarBalance(j.id);
@@ -266,7 +276,9 @@ function jarCard(j,mini){
 function renderHome(){
   const d=new Date(), y=TODAY.slice(0,4), ym=TODAY.slice(0,7);
   const ops=paid().filter(notBuy);
-  const mT=sum(ops.filter(e=>e.date.startsWith(ym))), yT=sum(ops.filter(e=>e.date.startsWith(y)));
+  const mL=ops.filter(e=>e.date.startsWith(ym)), yL=ops.filter(e=>e.date.startsWith(y)), anyIn=paid().some(isIn);
+  const tile=(label,l)=>`<div class="card tile"><div class="label">${label}${anyIn?'收支':'花費'}</div><div class="v num${net(l)>0?' pos':''}">${money(net(l),true)}</div>
+    <div class="tiny faint">${anyIn?`<span style="white-space:nowrap">收入 <span class="num">${money0(earned(l))}</span></span>・<span style="white-space:nowrap">支出 <span class="num">${money0(-spent(l))}</span></span>`:`不含${esc(buyName())}類`}</div></div>`;
   const up=upcoming().filter(u=>diff(TODAY,u.date)<=45).slice(0,6);
   const flags=S.expenses.filter(e=>e.flag).length;
   const pinned=S.jars.filter(j=>j.pin);
@@ -275,19 +287,19 @@ function renderHome(){
       return `<button class="item" data-act="${u.kind==='due'?'edit':'addfrom'}" data-id="${u.kind==='due'?u.exp.id:u.bill.id}">
         <span class="when"><b class="num">${md(u.date)}</b><span>${n===0?'今天':n>0?n+' 天後':'星期'+WEEK[parse(u.date).getDay()]}</span></span>
         <span class="grow"><span style="display:block;font-weight:600" class="ell">${esc(subName(u.sub))}${u.asset?`<span class="muted" style="font-weight:500">・${esc(assetShort(u.asset))}</span>`:''}</span><span class="meta">${state}</span></span>
-        <span class="amt num muted">${u.kind==='due'?'':'約 '}${money(-u.amount)}</span></button>`}).join(''):'<div class="empty">接下來 45 天沒有要繳的帳單</div>';
+        <span class="amt num muted">${u.kind==='due'?'':'約 '}${money(isInSub(u.sub)?u.amount:-u.amount,true)}</span></button>`}).join(''):'<div class="empty">接下來 45 天沒有要繳的帳單</div>';
   const groups=S.folders.map(f=>({f,as:S.assets.filter(a=>a.folder===f.id&&!a.archived)})).filter(g=>g.as.length);
   const card=a=>{const es=paid().filter(e=>e.asset===a.id);const last=es.sort((x,z)=>x.date<z.date?1:-1)[0];
     return `<button class="asset" data-act="assetlist" data-id="${a.id}"><span class="row"><span class="dot" style="width:30px;height:30px">${iconHTML(a.kind)}</span><span class="tiny muted ell grow">${esc(a.nick||'')}</span></span>
-      <span class="nm">${esc(a.name)}</span><span class="v num">${money0(-sum(es.filter(e=>notBuy(e)&&e.date.startsWith(y))))}</span><span class="tiny faint">今年・${last?'最近 '+md(last.date)+' '+esc(subName(last.sub)):'還沒有紀錄'}</span></button>`};
-  const folders=groups.length?groups.map(g=>`<div>${groups.length>1?`<div class="gh" style="padding-top:0"><span>${esc(g.f.name)}</span><span class="num">${money0(-sum(ops.filter(e=>e.date.startsWith(y)&&g.as.some(a=>a.id===e.asset))))}／今年</span></div>`:''}<div class="agrid">${g.as.map(card).join('')}</div></div>`).join('')
+      <span class="nm">${esc(a.name)}</span><span class="v num">${money0(net(es.filter(e=>notBuy(e)&&e.date.startsWith(y))))}</span><span class="tiny faint">今年・${last?'最近 '+md(last.date)+' '+esc(subName(last.sub)):'還沒有紀錄'}</span></button>`};
+  const folders=groups.length?groups.map(g=>`<div>${groups.length>1?`<div class="gh" style="padding-top:0"><span>${esc(g.f.name)}</span><span class="num">${money0(net(ops.filter(e=>e.date.startsWith(y)&&g.as.some(a=>a.id===e.asset))))}／今年</span></div>`:''}<div class="agrid">${g.as.map(card).join('')}</div></div>`).join('')
     :`<div class="card empty">還沒有資產。<br>房子、車子或任何想分開記帳的東西都可以設成資產，這是選填的。<br><button class="btn sm ghost" style="margin-top:8px" data-act="goassets">新增資產</button></div>`;
   main.innerHTML=topbar(`${d.getMonth()+1}月${d.getDate()}日 星期${WEEK[d.getDay()]}`,syncLabel(),gearBtn)+`
   <div class="homegrid"><div class="stack">
     ${pinned.length?`<div class="jarcards">${pinned.map((j,i)=>jarCard(j,i>0)).join('')}</div>`:`<button class="card pad row" data-tab="jar" style="text-align:left"><span class="dot">${ICON.pin}</span><span class="grow small muted">首頁沒有釘選存錢罐。到存錢罐頁面按「釘選到首頁」</span><span class="muted">›</span></button>`}
     <div class="tiles">
-      <div class="card tile"><div class="label">${d.getMonth()+1} 月花費</div><div class="v num">${money(-mT)}</div><div class="tiny faint">不含${esc(buyName())}類</div></div>
-      <div class="card tile"><div class="label">${y} 年花費</div><div class="v num">${money(-yT)}</div><div class="tiny faint">不含${esc(buyName())}類</div></div>
+      ${tile(`${d.getMonth()+1} 月`,mL)}
+      ${tile(`${y} 年`,yL)}
     </div>
     ${flags?`<button class="card pad row" data-act="goreview" style="text-align:left;border-color:var(--warn)"><span class="dot" style="background:var(--warn-soft);color:var(--warn)">${ICON.bell}</span><span class="grow"><b>${flags} 筆匯入資料要請你確認</b><span class="tiny muted" style="display:block">匯入時發現可能有問題的資料，點進去逐筆確認</span></span><span class="muted">›</span></button>`:''}
     <section class="card"><div class="row between pad" style="padding-bottom:6px"><h2 class="h2">接下來要繳</h2><button class="btn sm ghost" data-act="gobills">提醒設定</button></div><div class="list">${upHtml}</div></section>
@@ -303,6 +315,7 @@ function filtered(){
     if(!matchAsset(e,F.asset)) return false;
     if(F.cat!=='all'){ if(F.cat.startsWith('c:')){ if(catOf(e.sub)?.id!==F.cat.slice(2)) return false;} else if(e.sub!==F.cat) return false;}
     if(F.src!=='all'&&e.src!==F.src) return false;
+    if(F.flow!=='all'&&(F.flow==='in')!==isIn(e)) return false;
     if(range&&(e.date<range[0]||e.date>range[1])) return false;
     if(q&&!(title(e)+' '+e.note+' '+(e.orig||'')+' '+subName(e.sub)+' '+assetOf(e.asset).name+' '+assetOf(e.asset).nick).toLowerCase().includes(q)) return false;
     return true;}).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
@@ -318,17 +331,18 @@ function renderList(keepFocus){
       <select id="fa" data-title="資產" class="sel${F.asset!=='all'?' on':''}">${assetOptions(F.asset,true)}</select>
       <select id="fc" data-title="類別" class="sel${F.cat!=='all'?' on':''}">${subOptions(F.cat,true)}</select>
       <select id="fp" data-title="時間" class="sel${F.period!=='all'?' on':''}">${PERIODS.map(([v,l])=>`<option value="${v}"${F.period===v?' selected':''}>${l}</option>`).join('')}</select>
+      <select id="fw" data-title="收入或支出" class="sel${F.flow!=='all'?' on':''}"><option value="all">收入和支出</option><option value="out"${F.flow==='out'?' selected':''}>只看支出</option><option value="in"${F.flow==='in'?' selected':''}>只看收入</option></select>
       <select id="fy" data-title="扣款來源" class="sel${F.src!=='all'?' on':''}"><option value="all">扣款來源：全部</option>${S.jars.map(j=>`<option value="${j.id}"${F.src===j.id?' selected':''}>存錢罐：${esc(j.name)}</option>`).join('')}<option value="${NONE}"${F.src===NONE?' selected':''}>${NONE_LABEL}</option></select>
     </div>
     ${F.period==='custom'?`<div class="inline"><span class="small muted">從</span><input id="ffrom" class="search" type="date" value="${F.from}" style="width:auto"><span class="small muted">到</span><input id="fto" class="search" type="date" value="${F.to}" style="width:auto"></div>`:''}
-    <div class="card sumbar"><div><div class="label">篩選結果合計</div><div class="tiny faint">${rows.length} 筆${F.pick?'・點選項目來勾選':''}</div></div><div class="v num">${money(-sum(rows))}</div></div>
-    ${rows.length?Object.entries(groups).map(([m,es])=>`<div><div class="gh"><span>${m.slice(0,4)} 年 ${+m.slice(5)} 月</span><span class="num">${money(-sum(es))}</span></div><div class="card list">${es.map(e=>expRow(e,F.pick)).join('')}</div></div>`).join(''):'<div class="card empty">沒有符合條件的開銷</div>'}
+    <div class="card sumbar"><div><div class="label">篩選結果合計</div><div class="tiny faint">${rows.length} 筆${F.pick?'・點選項目來勾選':''}</div></div><div class="v num">${money(net(rows),true)}</div></div>
+    ${rows.length?Object.entries(groups).map(([m,es])=>`<div><div class="gh"><span>${m.slice(0,4)} 年 ${+m.slice(5)} 月</span><span class="num">${money(net(es),true)}</span></div><div class="card list">${es.map(e=>expRow(e,F.pick)).join('')}</div></div>`).join(''):'<div class="card empty">沒有符合條件的開銷</div>'}
   </div>
-  ${F.pick?`<div class="picktray"><div class="card sumbar"><div><div class="tiny muted">已勾選 ${selRows.length} 筆</div><div class="v num">${money(-sum(selRows))}</div></div><div class="inline"><button class="btn sm" data-act="pickall">全選這些</button><button class="btn sm" data-act="pickclear">清除</button></div></div></div>`:''}`;
+  ${F.pick?`<div class="picktray"><div class="card sumbar"><div><div class="tiny muted">已勾選 ${selRows.length} 筆</div><div class="v num">${money(net(selRows),true)}</div></div><div class="inline"><button class="btn sm" data-act="pickall">全選這些</button><button class="btn sm" data-act="pickclear">清除</button></div></div></div>`:''}`;
   const q=document.getElementById('q');
   q.oninput=()=>{F.q=q.value;renderList(true)};
   if(keepFocus){q.focus();q.setSelectionRange(q.value.length,q.value.length)}
-  [['fa','asset'],['fc','cat'],['fy','src']].forEach(([id,k])=>document.getElementById(id).onchange=ev=>{F[k]=ev.target.value;renderList()});
+  [['fa','asset'],['fc','cat'],['fy','src'],['fw','flow']].forEach(([id,k])=>document.getElementById(id).onchange=ev=>{F[k]=ev.target.value;renderList()});
   document.getElementById('fp').onchange=ev=>{F.period=ev.target.value;
     if(F.period==='custom'&&!F.from){F.from=TODAY.slice(0,7)+'-01';F.to=TODAY}
     renderList()};
@@ -353,25 +367,25 @@ function monthsRange(range,first){
 }
 // what can be compared in each mode: [{key, id, name, group?, test(e)}]
 function chartChoices(){
-  if(C.by==='cat') return [{id:'all',name:`全部支出（不含${buyName()}）`,test:e=>notBuy(e)},...S.cats.map(c=>({id:c.id,name:c.name,icon:catIcon(c.id,true),test:e=>catOf(e.sub)?.id===c.id}))];
-  if(C.by==='asset') return [...S.assets.filter(a=>!a.archived||S.expenses.some(e=>e.asset===a.id)).map(a=>({id:a.id,name:assetShort(a.id),icon:assetIcon(a.kind,true),test:e=>e.asset===a.id})),{id:'none',name:'未指定資產',test:e=>!e.asset}];
-  return S.cats.flatMap(c=>c.subs.map(x=>({id:x.id,name:x.name,group:c.name,icon:catIcon(c.id,true,x.id),test:e=>e.sub===x.id})));
+  if(C.by==='cat') return [{id:'all',name:`全部支出（不含${buyName()}）`,test:e=>notBuy(e)&&!isIn(e)},...(paid().some(isIn)?[{id:'allin',name:'全部收入',inc:true,test:isIn}]:[]),...S.cats.map(c=>({id:c.id,name:c.name,inc:c.kind==='in',icon:catIcon(c.id,true),test:e=>catOf(e.sub)?.id===c.id}))];
+  if(C.by==='asset') return [...S.assets.filter(a=>!a.archived||S.expenses.some(e=>e.asset===a.id)).map(a=>({id:a.id,name:assetShort(a.id),icon:assetIcon(a.kind,true),test:e=>e.asset===a.id&&!isIn(e)})),{id:'none',name:'未指定資產',test:e=>!e.asset&&!isIn(e)}];
+  return S.cats.flatMap(c=>c.subs.map(x=>({id:x.id,name:x.name,group:c.name,inc:c.kind==='in',icon:catIcon(c.id,true,x.id),test:e=>e.sub===x.id})));
 }
 function renderChart(){
   const pool=paid().filter(e=>C.by==='asset'?(C.cat==='all'||(C.cat.startsWith('c:')?catOf(e.sub)?.id===C.cat.slice(2):e.sub===C.cat)):matchAsset(e,C.asset));
   const choices=chartChoices(), picks=C.picks[C.by];
   // first visit to a mode: start with the two biggest in the chosen time range (big purchases left out)
-  if(!picks.length){const from=C.range==='all'?'':addMonths(TODAY.slice(0,7)+'-01',-(C.range-1)),tot=c=>sum(pool.filter(e=>e.date>=from&&c.test(e)));choices.filter(c=>c.id!=='all'&&c.id!=='buy').map(c=>[c,tot(c)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,2).forEach(([c])=>{picks.push(c.id);slotFor(c.id)})}
+  if(!picks.length){const from=C.range==='all'?'':addMonths(TODAY.slice(0,7)+'-01',-(C.range-1)),tot=c=>sum(pool.filter(e=>e.date>=from&&c.test(e)));choices.filter(c=>c.id!=='all'&&c.id!=='buy'&&!c.inc).map(c=>[c,tot(c)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,2).forEach(([c])=>{picks.push(c.id);slotFor(c.id)})}
   const chip=c=>{const on=picks.includes(c.id),k=C.slot[C.by+':'+c.id];return `<button class="chip" data-act="csub" data-id="${esc(c.id)}" aria-pressed="${on}" style="${on?`border-color:var(--s${k+1})`:''}">${on?`<i style="background:var(--s${k+1})"></i>`:(c.icon||'')}<span style="color:var(--ink)">${esc(c.name)}</span></button>`};
   const groups=[];choices.forEach(c=>{const g=groups.find(x=>x.name===c.group);if(g)g.items.push(c);else groups.push({name:c.group,items:[c]})});
   const chips=groups.map(g=>`<div class="stack" style="gap:6px">${g.name?`<div class="tiny muted" style="font-weight:600">${esc(g.name)}</div>`:''}<div class="chips">${g.items.map(chip).join('')}</div></div>`).join('');
-  const series=picks.map(id=>choices.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,name:c.name,color:`var(--s${C.slot[C.by+':'+c.id]+1})`,m:monthly(pool.filter(c.test),C.mode)}));
+  const series=picks.map(id=>choices.find(c=>c.id===id)).filter(Boolean).map(c=>({id:c.id,name:c.name,sg:c.inc?1:-1,color:`var(--s${C.slot[C.by+':'+c.id]+1})`,m:monthly(pool.filter(c.test),C.mode)}));
   const firstAll=series.flatMap(s=>Object.keys(s.m)).sort()[0];
   const months=monthsRange(C.range,firstAll);
   while(months.length>2&&series.every(s=>!(s.m[months.at(-1)]>0)))months.pop();
   series.forEach(s=>{s.v=months.map(k=>s.m[k]||0);s.total=s.v.reduce((a,b)=>a+b,0);s.avg=s.total/months.length;s.max=Math.max(0,...s.v);s.maxAt=months[s.v.indexOf(s.max)]});
   const filterSel=C.by==='asset'?`<select id="ccat" data-title="只看這個類別" class="sel${C.cat!=='all'?' on':''}">${subOptions(C.cat,true)}</select>`:`<select id="ca" data-title="只看這個資產" class="sel${C.asset!=='all'?' on':''}">${assetOptions(C.asset,true)}</select>`;
-  main.innerHTML=topbar('圖表','每月支出比較',gearBtn)+`
+  main.innerHTML=topbar('圖表','每月金額比較',gearBtn)+`
   <div class="stack">
     <div class="card pad stack">
       <div class="seg" role="group" aria-label="比較什麼" style="align-self:flex-start">${[['sub','小類'],['cat','大類'],['asset','資產']].map(([v,l])=>`<button data-act="cby" data-v="${v}" aria-pressed="${C.by===v}">比較${l}</button>`).join('')}</div>
@@ -380,7 +394,7 @@ function renderChart(){
         <div class="seg" role="group" aria-label="計算方式"><button data-act="cmode" data-v="service" aria-pressed="${C.mode==='service'}">按使用期間</button><button data-act="cmode" data-v="paid" aria-pressed="${C.mode==='paid'}">按付款日</button></div>
         <div class="seg" role="group" aria-label="時間範圍">${[[12,'12 個月'],[24,'24 個月'],['all','全部']].map(([v,l])=>`<button data-act="crange" data-v="${v}" aria-pressed="${C.range==v}">${l}</button>`).join('')}</div>
       </div>
-      <div class="hint">${C.mode==='service'?'有填使用期間的帳單，金額會平均分到它涵蓋的月份。季繳水費和月繳電費可以放在一起比。':'金額算在實際付款的月份，看的是每個月實際花出去多少。'}圖上畫的是支出的金額大小。</div>
+      <div class="hint">${C.mode==='service'?'有填使用期間的帳單，金額會平均分到它涵蓋的月份。季繳水費和月繳電費可以放在一起比。':'金額算在實際付款的月份，看的是每個月實際花出去多少。'}圖上畫的是金額大小（支出和收入都往上畫）。</div>
       ${chips}
       <div class="hint">點選要比較的項目，最多同時 ${MAXS} 項。</div>
     </div>
@@ -388,10 +402,10 @@ function renderChart(){
       <div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>
       <div class="chartwrap" id="cw"></div>
     </div>
-    <div class="stats">${series.map(s=>`<div class="card tile"><div class="row"><i style="width:10px;height:10px;border-radius:50%;background:${s.color};display:inline-block;flex:none"></i><span class="label ell">${esc(s.name)}</span></div><div class="v num">${money(-s.total)}</div><div class="tiny muted">月平均 <span class="num">${money(-s.avg)}</span>・最多在 <span class="num">${s.max&&s.maxAt?+s.maxAt.slice(5)+'月':'—'}</span></div></div>`).join('')}</div>
+    <div class="stats">${series.map(s=>`<div class="card tile"><div class="row"><i style="width:10px;height:10px;border-radius:50%;background:${s.color};display:inline-block;flex:none"></i><span class="label ell">${esc(s.name)}</span></div><div class="v num">${money(s.sg*s.total)}</div><div class="tiny muted">月平均 <span class="num">${money(s.sg*s.avg)}</span>・最多在 <span class="num">${s.max&&s.maxAt?+s.maxAt.slice(5)+'月':'—'}</span></div></div>`).join('')}</div>
     <div class="card scrollx"><table class="tbl num"><thead><tr><th>月份</th>${series.map(s=>`<th>${esc(s.name)}</th>`).join('')}</tr></thead><tbody>
       ${months.map((k,i)=>({k,i})).reverse().map(({k,i})=>`<tr><td>${k.replace('-','/')}</td>${series.map(s=>{const v=s.v[i],p=i?s.v[i-1]:null;const dlt=p!=null&&p>0&&v>0?(v-p)/p*100:null;
-        return `<td>${v?money(-v):'<span class="faint">—</span>'}${dlt!=null&&Math.abs(dlt)>=1?` <span class="${dlt>0?'up':'down'}">${dlt>0?'▲':'▼'}${Math.abs(dlt).toFixed(0)}%</span>`:''}</td>`}).join('')}</tr>`).join('')}
+        return `<td>${v?money(s.sg*v):'<span class="faint">—</span>'}${dlt!=null&&Math.abs(dlt)>=1?` <span class="${dlt>0?'up':'down'}">${dlt>0?'▲':'▼'}${Math.abs(dlt).toFixed(0)}%</span>`:''}</td>`}).join('')}</tr>`).join('')}
     </tbody></table></div>`:'<div class="card empty">在上面點選要比較的項目</div>'}
   </div>`;
   const ca=document.getElementById('ca');if(ca)ca.onchange=ev=>{C.asset=ev.target.value;renderChart()};
@@ -461,15 +475,15 @@ function requestSheet(jid){
     <button class="btn primary" id="copy">複製文字</button></div>`,root=>{
     const $=s=>root.querySelector(s);
     const draw=()=>{
-      const items=forecast(jid,months), est=items.filter(i=>!off.has(i.key)).reduce((t,i)=>t+i.total,0), need=Math.max(0,est-bal);
-      $('#estlist').innerHTML=items.map(i=>`<button class="est" data-k="${i.key}"><span class="chk${off.has(i.key)?'':' on'}">${off.has(i.key)?'':ICON.check}</span><span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(i.label)}</span><span class="tiny muted">${i.note}・${i.n} 次 × 約 <span class="num">${money(-i.each)}</span></span></span><span class="num" style="font-weight:600">${money(-i.total)}</span></button>`).join('')||'<div class="empty">這段時間沒有預估的帳單</div>';
+      const items=forecast(jid,months), flow=items.filter(i=>!off.has(i.key)).reduce((t,i)=>t+i.total,0), need=Math.max(0,-(bal+flow));
+      $('#estlist').innerHTML=items.map(i=>`<button class="est" data-k="${i.key}"><span class="chk${off.has(i.key)?'':' on'}">${off.has(i.key)?'':ICON.check}</span><span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(i.label)}</span><span class="tiny muted">${i.note}・${i.n} 次 × 約 <span class="num">${money(i.each)}</span></span></span><span class="num" style="font-weight:600">${money(i.total)}</span></button>`).join('')||'<div class="empty">這段時間沒有預估的帳單</div>';
       $('#calc').innerHTML=`<div class="row between small"><span class="muted">罐子目前餘額</span><span class="num">${money(bal)}</span></div>
-        <div class="row between small"><span class="muted">未來 ${months} 個月預估支出</span><span class="num">${money(-est)}</span></div>
-        <div class="row between small"><span class="muted">兩個加起來</span><span class="num">${money(bal-est)}</span></div>
+        <div class="row between small"><span class="muted">未來 ${months} 個月預估</span><span class="num">${money(flow)}</span></div>
+        <div class="row between small"><span class="muted">兩個加起來</span><span class="num">${money(bal+flow)}</span></div>
         <div class="row between" style="border-top:1px solid var(--line);padding-top:8px"><b>這次請款</b><b class="num" style="font-size:20px">${money(need)}</b></div>`;
       $('#reqtxt').textContent=`${j.name}存錢罐（${slash(since[0]?.date||TODAY)} 起）\n\n`+since.map(r=>`${slash(r.date).slice(5)}  ${r.exp?withAsset(fullName(r.exp),r.exp.asset):r.label}  ${money(r.amount,true)}`).join('\n')+
-        `\n\n目前餘額：${money(bal)}${bal<0?'（我先墊付）':''}\n\n未來 ${months} 個月預估：\n`+items.filter(i=>!off.has(i.key)).map(i=>`・${i.label} ${i.n} 次 約 ${money(-i.total)}`).join('\n')+
-        `\n預估合計：${money(-est)}\n\n這次請款：${money(need)}`;
+        `\n\n目前餘額：${money(bal)}${bal<0?'（我先墊付）':''}\n\n未來 ${months} 個月預估：\n`+items.filter(i=>!off.has(i.key)).map(i=>`・${i.label} ${i.n} 次 約 ${money(i.total)}`).join('\n')+
+        `\n預估合計：${money(flow)}\n\n這次請款：${money(need)}`;
       root.querySelectorAll('.est').forEach(b=>b.onclick=()=>{off.has(b.dataset.k)?off.delete(b.dataset.k):off.add(b.dataset.k);draw()});
     };
     root.querySelectorAll('#rm [data-m]').forEach(b=>b.onclick=()=>{months=+b.dataset.m;j.months=months;saveCfg();root.querySelectorAll('#rm [data-m]').forEach(x=>x.setAttribute('aria-pressed',x===b));draw()});
@@ -520,11 +534,13 @@ function expenseForm(e,preset){
   const lastNew=S.expenses.filter(x=>x.status==='paid').sort((a,b)=>a.date<b.date?-1:1).at(-1);
   e=e?{...e,extra:{...(e.extra||{})}}:{id:uid('e'),name:'',asset:lastNew?.asset||S.assets.find(a=>!a.archived)?.id||'',date:TODAY,amount:'',sub:lastNew?.sub||S.cats.find(c=>c.subs.length)?.subs[0]?.id||'',cycle:'monthly',method:S.methods[0],src:S.jars[0]?.id||NONE,note:'',ps:'',pe:'',status:'paid',due:'',extra:{},...(preset||{})};
   const orig=isNew?null:S.expenses.find(x=>x.id===e.id);
+  let kind=isInSub(e.sub)?'in':'out';
   const srcs=[...S.jars.map(j=>[j.id,j.name]),[NONE,NONE_LABEL]];
-  openSheet(isNew?'記一筆':'編輯開銷',`<div class="form">
+  openSheet(isNew?'記一筆':(kind==='in'?'編輯收入':'編輯支出'),`<div class="form">
+    <div class="seg" id="xkind" style="align-self:center;padding:4px">${[['out','支出'],['in','收入']].map(([k,l])=>`<button type="button" data-kind="${k}" aria-pressed="${kind===k}" style="min-width:96px;padding:8px 16px">${l}</button>`).join('')}</div>
     <div class="fgroup"><div class="amountin"><span>${cur()[1]}</span><input id="xa" type="number" inputmode="decimal" placeholder="${zeroText()}" value="${e.amount}"></div><div class="hint" id="xlast" style="text-align:center;padding-bottom:12px"></div></div>
     <div class="fgroup">
-      <div class="f"><label for="xs">類別</label><select id="xs" data-layout="grid" data-title="選擇類別">${subOptions(e.sub)}</select></div>
+      <div class="f"><label for="xs">類別</label><select id="xs" data-layout="grid" data-title="選擇類別">${subOptions(e.sub,false,kind)}</select></div>
       <div class="f"><label for="xas">資產</label><select id="xas" data-title="選擇資產">${assetOptions(e.asset)}</select></div>
       <div class="f"><label for="xn">名稱</label><input id="xn" type="text" value="${esc(e.name)}" placeholder="選填，不填就顯示類別"></div>
     </div>
@@ -535,7 +551,7 @@ function expenseForm(e,preset){
       <div class="f" style="min-height:0;padding-top:0;border-top:0"><span class="hint" id="xtime" style="margin-left:auto"></span></div>
     </div>
     <div class="fgroup">
-      <div class="f col"><label>從哪裡扣</label><div class="seg" id="xsrc">${srcs.map(([k,v])=>`<button type="button" data-src="${k}" aria-pressed="${e.src===k}">${esc(v)}</button>`).join('')}</div></div>
+      <div class="f col"><label id="xsrcl">${kind==='in'?'存到哪裡':'從哪裡扣'}</label><div class="seg" id="xsrc">${srcs.map(([k,v])=>`<button type="button" data-src="${k}" aria-pressed="${e.src===k}">${esc(k===NONE&&kind==='in'?'不存進存錢罐':v)}</button>`).join('')}</div></div>
       <div class="f"><label for="xc">週期</label><select id="xc">${Object.entries(CYC).map(([k,[l]])=>`<option value="${k}"${e.cycle===k?' selected':''}>${l}</option>`).join('')}</select></div>
       <div class="f"><label for="xm">付款方式</label><select id="xm">${[...new Set([...S.methods,e.method].filter(Boolean))].map(m=>`<option${m===e.method?' selected':''}>${esc(m)}</option>`).join('')}</select></div>
     </div>
@@ -553,8 +569,20 @@ function expenseForm(e,preset){
       const t=timing(e);$('#xtime').innerHTML=t?`這筆是 <b>${t}</b>（付款日在使用期間${t==='預付'?'之前':t==='後付'?'之後':'中間'}）`:'選填。有填的話圖表可以把金額平均分到每個月';
       const last=lastOf(e.asset,e.sub,e.id);$('#xlast').innerHTML=last?`上次：<b class="num">${money(last.amount)}</b>・${slash(last.date)}`:'';syncSelects(root);};
     const setSrc=k=>{if(!srcs.some(s=>s[0]===k))return;e.src=k;root.querySelectorAll('[data-src]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.src===k))};
-    const prefill=()=>{ if(!isNew) return; const last=lastOf($('#xas').value,$('#xs').value);
-      if(last){ $('#xc').value=last.cycle; if(S.methods.includes(last.method))$('#xm').value=last.method; setSrc(last.src);
+    const amountColor=()=>{$('#xa').style.color=kind==='in'?'var(--pos)':''};
+    root.querySelectorAll('#xkind [data-kind]').forEach(b=>b.onclick=()=>{if(b.dataset.kind===kind)return;kind=b.dataset.kind;
+      root.querySelectorAll('#xkind [data-kind]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+      const lastK=S.expenses.filter(x=>isInSub(x.sub)===(kind==='in')).sort((a,b)=>a.date<b.date?-1:1).at(-1);
+      const first=lastK?.sub||S.cats.find(c=>(c.kind==='in')===(kind==='in')&&c.subs.length)?.subs[0]?.id||'';
+      const xs=$('#xs');xs.innerHTML=subOptions(first,false,kind);
+      $('#xsrcl').textContent=kind==='in'?'存到哪裡':'從哪裡扣';
+      const nb=root.querySelector(`[data-src="${NONE}"]`);if(nb)nb.textContent=kind==='in'?'不存進存錢罐':NONE_LABEL;
+      if(kind==='in')setSrc(NONE);
+      amountColor();prefill();sync()});
+    // new entries: fill cycle, method, period and the amount hint from the last record of this category
+    const prefill=()=>{ if(!isNew) return; $('#xps').value='';$('#xpe').value='';$('#xa').placeholder=zeroText(); const last=lastOf($('#xas').value,$('#xs').value);
+      $('#xc').value=last?last.cycle:'once';
+      if(last){ if(S.methods.includes(last.method))$('#xm').value=last.method; setSrc(last.src);
         $('#xa').placeholder=(+last.amount).toFixed(cur()[2]);
         if(last.ps&&last.pe&&CYC[last.cycle][1]){const ns=addDays(last.pe,1);$('#xps').value=ns;$('#xpe').value=addDays(addMonths(ns,CYC[last.cycle][1]),-1);} }
       sync(); };
@@ -578,10 +606,10 @@ function expenseForm(e,preset){
       if(rcpt===null&&e.receipt){B.delReceipt(e.id).catch(fail);delete e.receipt}
       if(rcpt){B.putReceipt(e.id,rcpt).catch(fail);e.receipt={name:rcpt.name,type:rcpt.type}}
       if(orig)Object.assign(orig,e);else S.expenses.push(e);
-      B.putExpense(clean(e)).catch(fail);closeSheet();rerender();toast(isNew?'已記下':'已更新');
+      B.putExpense(clean(e)).catch(fail);closeSheet();rerender();toast(isNew?(kind==='in'?'已記下收入':'已記下'):'已更新');
     };
     if($('#xdel'))$('#xdel').onclick=()=>confirmIn($('#xdelwrap'),()=>{S.expenses=S.expenses.filter(x=>x.id!==e.id);B.delExpense(e.id).catch(fail);closeSheet();rerender();toast('已刪除')});
-    isNew?prefill():sync();
+    amountColor();isNew?prefill():sync();
     if(isNew)setTimeout(()=>$('#xa').focus(),250);
   },{label:'儲存',id:'xsave'});
 }
@@ -602,8 +630,8 @@ function renderSetup(){
       <div class="hint">資產可以是房子、車子或任何想分開記帳的東西，記帳時是選填的。分組用來把資產分開，例如個人、公司、家人；只有一組時首頁不會顯示組名。</div>`;
   } else if(setupTab==='cats'){
     const cnt=id=>S.expenses.filter(e=>e.sub===id).length;
-    body=`<div class="hint">點小類可以改名、搬到別的大類或刪除；點「編輯」可以改大類名稱、調整小類順序。</div>`+
-      S.cats.map(c=>`<div class="card pad stack" style="gap:12px"><div class="row">${catIcon(c.id)}<b class="grow">${esc(c.name)}</b><button class="btn sm ghost" data-act="editcat" data-id="${c.id}">編輯</button></div>
+    body=`<div class="hint">點小類可以改名、搬到別的大類或刪除；點「編輯」可以改大類名稱、設定它是支出還是收入、調整小類順序。</div>`+
+      S.cats.map(c=>`<div class="card pad stack" style="gap:12px"><div class="row">${catIcon(c.id)}<b class="grow">${esc(c.name)}${c.kind==='in'?' <span class="pill jar">收入</span>':''}</b><button class="btn sm ghost" data-act="editcat" data-id="${c.id}">編輯</button></div>
         <div class="subgrid">${c.subs.map(x=>`<button class="stile" data-act="editsub" data-id="${x.id}">${catIcon(c.id,true,x.id)}<span class="ell">${esc(x.name)}</span>${cnt(x.id)?`<span class="tiny faint num">${cnt(x.id)}</span>`:''}</button>`).join('')}<button class="stile add" data-act="newsub" data-id="${c.id}">＋ 新增小類</button></div></div>`).join('')+
       `<div class="inline"><button class="btn ghost" data-act="newcat">＋ 新增大類</button><button class="btn ghost" data-act="sortcats">調整大類順序</button></div>
       <div class="card pad stack" style="gap:12px"><div class="row"><b class="grow">付款方式</b>${S.methods.length>1?'<button class="btn sm ghost" data-act="sortlist" data-id="methods">調整順序</button>':''}</div>
@@ -845,14 +873,18 @@ function folderForm(f){
   },{label:isNew?'新增':'儲存',id:'fsave'});
 }
 function catForm(c){
-  const isNew=!c;
+  const isNew=!c;let kind=c?.kind==='in'?'in':'out';
+  const used=isNew?0:S.expenses.filter(e=>catOf(e.sub)?.id===c.id).length;
   openSheet(isNew?'新增大類':'編輯大類',`<div class="form"><div class="fgroup">
-    <div class="f"><label for="cname">名稱</label><input id="cname" type="text" value="${esc(c?.name||'')}" placeholder="例如：寵物、旅行"></div></div>
+    <div class="f"><label for="cname">名稱</label><input id="cname" type="text" value="${esc(c?.name||'')}" placeholder="例如：寵物、旅行、兼職收入"></div>
+    <div class="f"><label>類型</label><div class="seg" style="margin-left:auto">${[['out','支出'],['in','收入']].map(([k,l])=>`<button type="button" data-ck="${k}" aria-pressed="${kind===k}">${l}</button>`).join('')}</div></div></div>
+    ${used?`<div class="hint">這個大類有 ${used} 筆紀錄。改成${kind==='in'?'支出':'收入'}的話，這些紀錄也會一起變成${kind==='in'?'支出':'收入'}。</div>`:''}
     ${c?.subs.length>1?'<button class="btn ghost" id="csort">調整小類順序</button>':''}
     ${isNew?'':c.subs.length?`<div class="hint">這個大類裡還有 ${c.subs.length} 個小類，先把小類刪除或搬到別的大類，才能刪除這個大類。</div>`:'<button class="btn danger" id="cdel">刪除這個大類</button>'}</div>`,root=>{
     const $=q=>root.querySelector(q);
+    root.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>{kind=b.dataset.ck;root.querySelectorAll('[data-ck]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
     $('#csave').onclick=()=>{const name=$('#cname').value.trim();if(!name){toast('請輸入名稱');return}
-      if(isNew)S.cats.push({id:uid('c'),name,subs:[]});else c.name=name;saveCfg();closeSheet();renderSetup();toast(isNew?'已新增':'已更新')};
+      if(isNew)S.cats.push({id:uid('c'),name,subs:[],...(kind==='in'?{kind:'in'}:{})});else{c.name=name;if(kind==='in')c.kind='in';else delete c.kind}saveCfg();closeSheet();renderSetup();toast(isNew?'已新增':'已更新')};
     if($('#csort'))$('#csort').onclick=()=>reorderSheet(`調整「${c.name}」的小類順序`,c.subs.map(x=>({id:x.id,label:x.name,icon:catIcon(c.id,true,x.id)})),ids=>{c.subs=ids.map(i=>c.subs.find(x=>x.id===i))});
     if($('#cdel'))$('#cdel').onclick=()=>{closeSheet();withUndo(`已刪除大類「${c.name}」`,()=>{S.cats=S.cats.filter(x=>x!==c)})};
   },{label:isNew?'新增':'儲存',id:'csave'});
@@ -890,7 +922,7 @@ function itemForm(key,idx){
     if($('#idel'))$('#idel').onclick=()=>{closeSheet();withUndo(`已刪除${what}「${old}」`,()=>{S[key]=S[key].filter((x,i)=>i!==idx)})};
   },{label:isNew?'新增':'儲存',id:'isave'});
 }
-const xctx=()=>({S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,cur:cur(),buyName:buyName()});
+const xctx=()=>({S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,isIn,sv,cur:cur(),buyName:buyName()});
 function iconPicker(current,onPick){
   const tile=(k,l)=>`<button class="card pad stack" data-kind="${k}" style="align-items:center;gap:6px;${current===k?'border-color:var(--accent);color:var(--accent)':''}"><span class="dot">${iconHTML(k)}</span><span class="small ell" style="max-width:100%">${esc(l)}</span></button>`;
   const grid=`style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr))"`;
@@ -990,7 +1022,7 @@ function openPicker(sel){
   [...sel.children].forEach(n=>{if(n.tagName==='OPTGROUP')parts.push({head:n.label,opts:[...n.children]});else{const last=parts.at(-1);if(last&&!last.head)last.opts.push(n);else parts.push({opts:[n]})}});
   const row=o=>{const kid=o.textContent.startsWith('　└ '),grp=/^[cf]:/.test(o.value);
     return `<button class="po${kid?' kid':''}${grp?' grp':''}" data-i="${o.index}" role="option" aria-selected="${o.selected}">${kid?'':optVisual(o)}<span class="lbl">${esc(optText(o))}</span>${o.selected?OKMARK:''}</button>`};
-  const tile=o=>`<button class="pt" data-i="${o.index}" role="option" aria-selected="${o.selected}" style="${o.dataset.cat?`--k:var(--k-${['life','home','util','car','ins','fee','buy','misc'].includes(o.dataset.cat)?o.dataset.cat:'x'})`:''}">${optVisual(o)}<span>${esc(optText(o))}</span></button>`;
+  const tile=o=>`<button class="pt" data-i="${o.index}" role="option" aria-selected="${o.selected}" style="${o.dataset.cat?`--k:var(--k-${['life','home','util','car','ins','fee','buy','misc','income'].includes(o.dataset.cat)?o.dataset.cat:'x'})`:''}">${optVisual(o)}<span>${esc(optText(o))}</span></button>`;
   const body=parts.map(p=>(p.head?`<div class="ph">${esc(p.head)}</div>`:'')+(grid?`<div class="pgrid">${p.opts.map(tile).join('')}</div>`:`<div class="plist">${p.opts.map(row).join('')}</div>`)).join('');
   const search=!grid&&sel.options.length>12?'<input class="search psearch" type="search" placeholder="搜尋…" aria-label="搜尋選項">':'';
   const root=document.getElementById('pickroot');
@@ -1060,7 +1092,8 @@ B.onUser((user,err)=>{
       if(e){showGate(`<div class="err">讀不到資料：${esc(e.code||e.message)}。請確認 Firestore 的安全規則已經設定好。</div><button class="btn ghost" id="gout">登出</button>`);gate.querySelector('#gout').onclick=()=>B.logout();return}
       if(!cfg){if(!fromCache){have=false;showWelcome()}return}
       if(cfgDirty)return;
-      have=true;got.cfg=true;Object.assign(S,defaultConfig(),cfg);S.v=cfg.v||2;if(!jarOf(curJar))curJar=S.jars[0]?.id||null;
+      have=true;got.cfg=true;Object.assign(S,defaultConfig(),cfg);S.v=cfg.v||2;
+      if(S.v===3){if(!S.cats.some(c=>c.kind==='in'))S.cats.push(clean(defaultConfig().cats.find(c=>c.kind==='in')));S.v=4;saveCfg()}if(!jarOf(curJar))curJar=S.jars[0]?.id||null;
       applyFont(S.font);startApp();tryMigrate();
     },
     onExpenses:list=>{S.expenses=list;got.exp=true;tryMigrate();scheduleRender()},
