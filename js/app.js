@@ -366,7 +366,11 @@ const MAXS=6;
 let setupTab='ledger', curJar=null;
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),1800)}
 function topbar(t,sub,right=''){return `<header class="top"><div class="grow"><h1>${t}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div>${right}</header>`}
-const gearBtn=()=>`<button class="fsel sel lpill" data-act="ledgers" aria-label="切換帳本"><span class="ell">${esc(LEDGER?.name||'帳本')}</span>${CHEV}</button><button class="iconbtn" data-tab="setup" aria-label="設定">${ICON.gear}</button>`;
+const gearBtn=()=>`<button class="fsel sel lpill" data-act="ledgers" aria-label="切換帳本"><span class="ell">${esc(LEDGER?.name||'帳本')}</span>${CHEV}</button>`;
+// pages that share a tab: 收支 = 明細 + 圖表, 資金 = 預算 + 存錢罐
+const SUBNAV={list:[['list','明細'],['chart','圖表']],budget:[['budget','預算'],['jar','存錢罐']]};
+const GROUP_OF={list:'list',chart:'list',budget:'budget',jar:'budget'},LAST_SUB={list:'list',budget:'budget'};
+const subNav=()=>{const g=GROUP_OF[tab];return g?`<div class="seg subnav" role="tablist">${SUBNAV[g].map(([k,l])=>`<button data-tab="${k}" role="tab" aria-pressed="${tab===k}">${l}</button>`).join('')}</div>`:''};
 function assetOptions(sel,withAll){
   let h=withAll?`<option value="all"${sel==='all'?' selected':''}>全部資產</option>`:`<option value=""${!sel?' selected':''}>不指定資產</option>`;
   const groups=S.folders.map(f=>({f,as:S.assets.filter(a=>a.folder===f.id&&(withAll||!a.archived||a.id===sel))})).filter(g=>g.as.length);
@@ -459,7 +463,7 @@ function renderList(keepFocus){
   const rows=filtered();
   const groups={}; rows.forEach(e=>{(groups[e.date.slice(0,7)]??=[]).push(e)});
   const selRows=S.expenses.filter(e=>F.sel.has(e.id));
-  main.innerHTML=topbar('明細',`${rows.length} 筆`,`<button class="iconbtn" data-act="pickmode" aria-pressed="${F.pick}" aria-label="勾選計算" style="${F.pick?'background:var(--accent);color:var(--accent-ink);border-color:var(--accent)':''}">${ICON.pick}</button>${gearBtn()}`)+`
+  main.innerHTML=topbar('收支',`${rows.length} 筆`,`<button class="iconbtn" data-act="pickmode" aria-pressed="${F.pick}" aria-label="勾選計算" style="${F.pick?'background:var(--accent);color:var(--accent-ink);border-color:var(--accent)':''}">${ICON.pick}</button>${gearBtn()}`)+subNav()+`
   <div class="stack">
     <input id="q" class="search" type="search" placeholder="搜尋名稱、備註、資產…" value="${esc(F.q)}">
     <div class="filters">
@@ -504,13 +508,13 @@ function monthsRange(range,first){
 function chartChoices(){
   if(C.by==='cat') return [{id:'all',name:`全部支出（不含${buyName()}）`,test:e=>notBuy(e)&&!isIn(e)},...(paid().some(isIn)?[{id:'allin',name:'全部收入',inc:true,test:isIn}]:[]),...S.cats.map(c=>({id:c.id,name:c.name,inc:c.kind==='in',icon:catIcon(c.id,true),test:e=>catOf(e.sub)?.id===c.id}))];
   if(C.by==='asset') return [...S.assets.filter(a=>!a.archived||S.expenses.some(e=>e.asset===a.id)).map(a=>({id:a.id,name:assetShort(a.id),icon:assetIcon(a.kind,true),test:e=>e.asset===a.id&&!isIn(e)})),{id:'none',name:'未指定資產',test:e=>!e.asset&&!isIn(e)}];
-  return S.cats.flatMap(c=>c.subs.map(x=>({id:x.id,name:x.name,group:c.name,inc:c.kind==='in',icon:catIcon(c.id,true,x.id),test:e=>e.sub===x.id})));
+  return S.cats.flatMap(c=>c.subs.map(x=>({id:x.id,name:x.name,group:c.name,cat:c.id,inc:c.kind==='in',icon:catIcon(c.id,true,x.id),test:e=>e.sub===x.id})));
 }
 function renderChart(){
   const pool=paid().filter(e=>C.by==='asset'?(C.cat==='all'||(C.cat.startsWith('c:')?catOf(e.sub)?.id===C.cat.slice(2):e.sub===C.cat)):matchAsset(e,C.asset));
   const choices=chartChoices(), picks=C.picks[C.by];
   // first visit to a mode: start with the two biggest in the chosen time range (big purchases left out)
-  if(!picks.length){const from=C.range==='all'?'':addMonths(TODAY.slice(0,7)+'-01',-(C.range-1)),tot=c=>sum(pool.filter(e=>e.date>=from&&c.test(e)));choices.filter(c=>c.id!=='all'&&c.id!=='buy'&&!c.inc).map(c=>[c,tot(c)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,2).forEach(([c])=>{picks.push(c.id);slotFor(c.id)})}
+  if(!picks.length){const from=C.range==='all'?'':addMonths(TODAY.slice(0,7)+'-01',-(C.range-1)),tot=c=>sum(pool.filter(e=>e.date>=from&&c.test(e)));choices.filter(c=>c.id!=='all'&&c.id!=='buy'&&c.cat!=='buy'&&!c.inc).map(c=>[c,tot(c)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,2).forEach(([c])=>{picks.push(c.id);slotFor(c.id)})}
   const chip=c=>{const on=picks.includes(c.id),k=C.slot[C.by+':'+c.id];return `<button class="chip" data-act="csub" data-id="${esc(c.id)}" aria-pressed="${on}" style="${on?`border-color:var(--s${k+1})`:''}">${on?`<i style="background:var(--s${k+1})"></i>`:(c.icon||'')}<span style="color:var(--ink)">${esc(c.name)}</span></button>`};
   const groups=[];choices.forEach(c=>{const g=groups.find(x=>x.name===c.group);if(g)g.items.push(c);else groups.push({name:c.group,items:[c]})});
   const chips=groups.map(g=>`<div class="stack" style="gap:6px">${g.name?`<div class="tiny muted" style="font-weight:600">${esc(g.name)}</div>`:''}<div class="chips">${g.items.map(chip).join('')}</div></div>`).join('');
@@ -520,32 +524,42 @@ function renderChart(){
   while(months.length>2&&series.every(s=>!(s.m[months.at(-1)]>0)))months.pop();
   series.forEach(s=>{s.v=months.map(k=>s.m[k]||0);s.total=s.v.reduce((a,b)=>a+b,0);s.avg=s.total/months.length;s.max=Math.max(0,...s.v);s.maxAt=months[s.v.indexOf(s.max)]});
   const filterSel=C.by==='asset'?`<select id="ccat" data-title="只看這個類別" class="sel${C.cat!=='all'?' on':''}">${subOptions(C.cat,true)}</select>`:`<select id="ca" data-title="只看這個資產" class="sel${C.asset!=='all'?' on':''}">${assetOptions(C.asset,true)}</select>`;
-  main.innerHTML=topbar('圖表','每月金額比較',gearBtn())+`
+  const pickedChips=series.map(x=>`<button class="chip" data-act="csub" data-id="${esc(x.id)}" aria-label="移除 ${esc(x.name)}" style="border-color:${x.color}"><i style="background:${x.color}"></i><span style="color:var(--ink)">${esc(x.name)}</span><span class="faint" aria-hidden="true">×</span></button>`).join('');
+  main.innerHTML=topbar('收支','每月金額比較',gearBtn())+subNav()+`
   <div class="stack">
-    <div class="card pad stack">
-      <div class="seg" role="group" aria-label="比較什麼" style="align-self:flex-start">${[['sub','小類'],['cat','大類'],['asset','資產']].map(([v,l])=>`<button data-act="cby" data-v="${v}" aria-pressed="${C.by===v}">比較${l}</button>`).join('')}</div>
-      <div class="filters" style="flex-wrap:wrap">
-        ${filterSel}
-        <div class="seg" role="group" aria-label="計算方式"><button data-act="cmode" data-v="service" aria-pressed="${C.mode==='service'}">按使用期間</button><button data-act="cmode" data-v="paid" aria-pressed="${C.mode==='paid'}">按付款日</button></div>
-        <div class="seg" role="group" aria-label="時間範圍">${[[12,'12 個月'],[24,'24 個月'],['all','全部']].map(([v,l])=>`<button data-act="crange" data-v="${v}" aria-pressed="${C.range==v}">${l}</button>`).join('')}</div>
-      </div>
-      <div class="hint">${C.mode==='service'?'有填使用期間的帳單，金額會平均分到它涵蓋的月份。季繳水費和月繳電費可以放在一起比。':'金額算在實際付款的月份，看的是每個月實際花出去多少。'}圖上畫的是金額大小（支出和收入都往上畫）。</div>
-      ${chips}
-      <div class="hint">點選要比較的項目，最多同時 ${MAXS} 項。</div>
+    <div class="filters">
+      <select id="cby" data-title="比較什麼" class="sel on">${[['sub','比較小類'],['cat','比較大類'],['asset','比較資產']].map(([v,l])=>`<option value="${v}"${C.by===v?' selected':''}>${l}</option>`).join('')}</select>
+      ${filterSel}
+      <select id="cmode" data-title="怎麼算月份" class="sel">${[['service','按使用期間'],['paid','按付款日']].map(([v,l])=>`<option value="${v}"${C.mode===v?' selected':''}>${l}</option>`).join('')}</select>
+      <select id="crange" data-title="時間範圍" class="sel">${[['12','近 12 個月'],['24','近 24 個月'],['all','全部']].map(([v,l])=>`<option value="${v}"${String(C.range)===v?' selected':''}>${l}</option>`).join('')}</select>
     </div>
-    ${series.length?`<div class="card pad stack">
-      <div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>
+    <div class="filters" style="padding-top:0">${pickedChips}<button class="chip addchip" data-act="cpick">＋ 選擇項目</button></div>
+    ${series.length?`<div class="card pad stack" style="gap:6px">
       <div class="chartwrap" id="cw"></div>
+      <div class="tiny faint">${C.mode==='service'?'按使用期間：帳單金額平均分到它涵蓋的月份':'按付款日：金額算在付款的月份'}・圖上是金額大小</div>
     </div>
     <div class="stats">${series.map(s=>`<div class="card tile"><div class="row"><i style="width:10px;height:10px;border-radius:50%;background:${s.color};display:inline-block;flex:none"></i><span class="label ell">${esc(s.name)}</span></div><div class="v num">${money(s.sg*s.total)}</div><div class="tiny muted">月平均 <span class="num">${money(s.sg*s.avg)}</span>・最多在 <span class="num">${s.max&&s.maxAt?+s.maxAt.slice(5)+'月':'—'}</span></div></div>`).join('')}</div>
     <div class="card scrollx"><table class="tbl num"><thead><tr><th>月份</th>${series.map(s=>`<th>${esc(s.name)}</th>`).join('')}</tr></thead><tbody>
       ${months.map((k,i)=>({k,i})).reverse().map(({k,i})=>`<tr><td>${k.replace('-','/')}</td>${series.map(s=>{const v=s.v[i],p=i?s.v[i-1]:null;const dlt=p!=null&&p>0&&v>0?(v-p)/p*100:null;
         return `<td>${v?money(s.sg*v):'<span class="faint">—</span>'}${dlt!=null&&Math.abs(dlt)>=1?` <span class="${dlt>0?'up':'down'}">${dlt>0?'▲':'▼'}${Math.abs(dlt).toFixed(0)}%</span>`:''}</td>`}).join('')}</tr>`).join('')}
-    </tbody></table></div>`:'<div class="card empty">在上面點選要比較的項目</div>'}
+    </tbody></table></div>`:'<div class="card empty">按「＋ 選擇項目」挑要比較的類別或資產</div>'}
   </div>`;
   const ca=document.getElementById('ca');if(ca)ca.onchange=ev=>{C.asset=ev.target.value;renderChart()};
+  document.getElementById('cby').onchange=ev=>{C.by=ev.target.value;renderChart()};
+  document.getElementById('cmode').onchange=ev=>{C.mode=ev.target.value;renderChart()};
+  document.getElementById('crange').onchange=ev=>{C.range=ev.target.value==='all'?'all':+ev.target.value;renderChart()};
+  C._chips=chips;
   const cc=document.getElementById('ccat');if(cc)cc.onchange=ev=>{C.cat=ev.target.value;renderChart()};
   if(series.length) drawChart(document.getElementById('cw'),months,series);
+}
+// choose what to compare: the same chips as before, in a sheet
+function chartPicker(){
+  openSheet('選擇要比較的項目',`<div class="hint" style="margin-bottom:8px">最多同時 ${MAXS} 項，點一下選取或取消。</div><div class="stack" id="cpk">${C._chips||''}</div>`,root=>{
+    root.querySelector('#cpk').addEventListener('click',ev=>{const b=ev.target.closest('[data-act=csub]');if(!b)return;ev.stopPropagation();
+      const p=C.picks[C.by],id=b.dataset.id,i=p.indexOf(id);if(i>=0)p.splice(i,1);else{if(p.length>=MAXS){toast(`最多同時比較 ${MAXS} 項`);return}p.push(id);slotFor(id)}
+      renderChart();root.querySelector('#cpk').innerHTML=C._chips});
+    root.querySelector('#cpdone').onclick=closeSheet;
+  },{label:'完成',id:'cpdone'});
 }
 // colours stay with an item while it is picked (lowest free colour)
 function slotFor(id){const used=C.picks[C.by].filter(x=>x!==id).map(x=>C.slot[C.by+':'+x]);const k=C.by+':'+id;if(C.slot[k]==null||used.includes(C.slot[k]))C.slot[k]=[...Array(MAXS).keys()].find(n=>!used.includes(n));return C.slot[k]}
@@ -582,7 +596,7 @@ function renderBudget(){
         <span class="tiny muted">${CYC[i.b.cycle][0]}・${esc(i.f.label)}</span>
         <span class="meta">${i.actual?`<span class="pill acc">實際 ${money0(i.actual)}</span>`:''}${i.occ.length?`<span class="pill">預估 ${i.occ.length} 次 ${money0(i.remaining)}</span>`:''}${i.f.method==='none'?'<span class="pill neg">需要設定</span>':''}</span></span>
       <span class="amt num">${money0(i.total)}</span></button>`).join('');
-  main.innerHTML=topbar('預算',`${fyName}・${slash(m.fs)} – ${slash(m.fe)}`,gearBtn())+`
+  main.innerHTML=topbar('資金',`${fyName}・${slash(m.fs)} – ${slash(m.fe)}`,gearBtn())+subNav()+`
   <div class="homegrid"><div class="stack">
     <section class="card pad stack" style="gap:10px">
       <div class="row between"><span class="label">${fyName}支出預算</span><span class="pill ${m.locked?'acc':''}">${m.locked?'已鎖定':'自動計算'}</span></div>
@@ -637,9 +651,9 @@ function renderJar(){
   if(!jarOf(curJar)) curJar=S.jars[0]?.id||null;
   const j=jarOf(curJar);
   const picker=`<div class="chips">${S.jars.map(x=>`<button class="chip" data-act="pickjar" data-id="${x.id}" aria-pressed="${x.id===curJar}" style="${x.id===curJar?'color:var(--accent)':''}"><span style="color:var(--ink)">${esc(x.name)}</span><span class="num tiny ${jarBalance(x.id)<0?'':'muted'}" style="${jarBalance(x.id)<0?'color:var(--neg)':''}">${money0(jarBalance(x.id))}</span></button>`).join('')}<button class="chip addchip" data-act="newjar" data-eo>＋ 新增存錢罐</button>${S.jars.length>1?'<button class="chip" data-act="sortjars" data-eo>調整順序</button>':''}</div>`;
-  if(!j){main.innerHTML=topbar('存錢罐','',gearBtn())+`<div class="stack">${picker}<div class="card empty">還沒有存錢罐。按「新增存錢罐」建立第一個。</div></div>`;return}
+  if(!j){main.innerHTML=topbar('資金','',gearBtn())+subNav()+`<div class="stack">${picker}<div class="card empty">還沒有存錢罐。按「新增存錢罐」建立第一個。</div></div>`;return}
   const l=jarLedger(j.id),bal=l.length?l.at(-1).bal:0;
-  main.innerHTML=topbar('存錢罐','預先存好、專門用來付某些開銷的錢',gearBtn())+`
+  main.innerHTML=topbar('資金','存錢罐：預先存好、專門用來付某些開銷的錢',gearBtn())+subNav()+`
   <div class="stack">
     ${picker}
     <section class="card jar ${bal<0?'neg':''}">
@@ -873,7 +887,7 @@ function renderSetup(){
       ${flags.length&&canEdit()?`<div class="card"><div class="srow"><b class="grow">匯入資料確認（${flags.length}）</b></div>
       ${flags.map(e=>`<button class="item" data-act="edit" data-id="${e.id}"><span class="grow"><b class="ell" style="display:block">${esc(withAsset(title(e),e.asset))}</b><span class="tiny muted">${esc(e.flag)}</span></span><span class="muted">›</span></button>`).join('')}</div>`:''}`;
   }
-  main.innerHTML=topbar('設定','',`<button class="fsel sel lpill" data-act="ledgers" aria-label="切換帳本"><span class="ell">${esc(LEDGER?.name||'帳本')}</span>${CHEV}</button><button class="iconbtn" data-tab="home" aria-label="回首頁">${ICON.x}</button>`)+`<div class="stack"><div class="seg" role="tablist" style="align-self:flex-start">${tabs.map(([k,l])=>`<button data-act="stab" data-v="${k}" aria-pressed="${setupTab===k}">${l}</button>`).join('')}</div>${body}</div>`;
+  main.innerHTML=topbar('設定','',gearBtn())+`<div class="stack"><div class="seg" role="tablist" style="align-self:flex-start">${tabs.map(([k,l])=>`<button data-act="stab" data-v="${k}" aria-pressed="${setupTab===k}">${l}</button>`).join('')}</div>${body}</div>`;
   if(setupTab==='ledger')bindLedgerSettings();
   const imp=document.getElementById('impfile');if(imp)imp.onchange=ev=>{const f=ev.target.files[0];if(f)importFlow(f,document.getElementById('impwrap'))};
   const fu=document.getElementById('fontup');if(fu)fu.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;document.getElementById('fontmsg').textContent='讀取中…';
@@ -939,12 +953,12 @@ document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(document
 /* ---------- boot, routing & events ---------- */
 
 const VIEWS={home:renderHome,list:renderList,budget:renderBudget,chart:renderChart,jar:renderJar,setup:renderSetup};
-function go(t){tab=VIEWS[t]?t:'home';
-  document.querySelectorAll('.tab[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab?'page':'false'));
+function go(t){tab=VIEWS[t]?t:'home';if(GROUP_OF[tab])LAST_SUB[GROUP_OF[tab]]=tab;
+  document.querySelectorAll('.tab[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab||(b.dataset.group||'').split(',').includes(tab)?'page':'false'));
   VIEWS[tab]();window.scrollTo(0,0);try{if(location.hash.slice(1)!==tab)history.replaceState(null,'','#'+tab)}catch(e){}}
 function rerender(){const y=window.scrollY;VIEWS[tab]();window.scrollTo(0,y)}
 document.addEventListener('click',ev=>{
-  const t=ev.target.closest('[data-tab]');if(t&&!t.closest('#sheetroot')){go(t.dataset.tab);return}
+  const t=ev.target.closest('[data-tab]');if(t&&!t.closest('#sheetroot')){go(t.dataset.group&&!t.closest('.subnav')?LAST_SUB[t.dataset.tab]||t.dataset.tab:t.dataset.tab);return}
   const b=ev.target.closest('[data-act]');if(!b||b.closest('#sheetroot .form'))return;const id=b.dataset.id,act=b.dataset.act;
   ({
     add:()=>{if(canEdit())expenseForm()},
@@ -963,6 +977,7 @@ document.addEventListener('click',ev=>{
     goreview:()=>{setupTab='data';go('setup')}, gobills:()=>{setupTab='bills';go('setup')}, goassets:()=>{setupTab='assets';go('setup')},
     csub:()=>{const p=C.picks[C.by],i=p.indexOf(id);if(i>=0)p.splice(i,1);else{if(p.length>=MAXS){toast(`最多同時比較 ${MAXS} 項`);return}p.push(id);slotFor(id)}renderChart()},
     cby:()=>{C.by=b.dataset.v;renderChart()},
+    cpick:()=>chartPicker(),
     cmode:()=>{C.mode=b.dataset.v;renderChart()}, crange:()=>{C.range=b.dataset.v==='all'?'all':+b.dataset.v;renderChart()},
     stab:()=>{setupTab=b.dataset.v;renderSetup()},
     fontdel:async()=>{await IDB.del('font').catch(()=>{});CUSTOM_FONT=null;if(PREFPREFS.font==='custom'){PREFS.font='system';B.setPrefs(USER.uid,{font:'system'})}applyFont(PREFS.font);renderSetup()},
@@ -1312,6 +1327,14 @@ function newLedgerForm(first){
   },{label:'建立',id:'lnew'});
 }
 function ledgerSettings(){
+  const all=`<div class="card"><div class="srow"><b class="grow">所有帳本</b><button class="btn sm ghost" data-act="newledger2">＋ 新增帳本</button></div>
+    ${LEDGERS.map(l=>{const r=l.members?.[USER.uid],n=Object.keys(l.members||{}).length,inv=Object.keys(l.invites||{}).length;return `<button class="item" data-lid2="${l.id}"><span class="cic" style="--k:var(--accent)">${ICON.jar}</span>
+      <span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(l.name)}${l.id===LID?' <span class="pill acc">目前</span>':''}</span><span class="tiny muted">${ROLE_LABEL[r]||''}・${n} 位成員${inv?`・${inv} 個邀請待接受`:''}</span></span>${l.id===LID?OKMARK:'<span class="faint">›</span>'}</button>`}).join('')}
+    ${INVITES.map(l=>{const r=l.invites?.[B.emailKey(USER.email)];return `<div class="srow"><span class="grow"><b>${esc(l.name)}</b><span class="tiny muted" style="display:block">${esc(l.names?.[l.owner]?.name||'')} 邀請你・${ROLE_LABEL[r]||''}</span></span><button class="btn sm primary" data-accept2="${l.id}" data-role="${r}">加入</button></div>`}).join('')}</div>
+    <div class="gh" style="padding-top:6px">目前的帳本</div>`;
+  return all+ledgerSettingsCurrent();
+}
+function ledgerSettingsCurrent(){
   const L=LEDGER||{},members=Object.entries(L.members||{}).sort((a,b)=>(a[1]==='owner'?-1:0)-(b[1]==='owner'?-1:0)),invites=Object.entries(L.invites||{});
   return `<div class="card"><div class="srow"><span class="grow"><b>${esc(L.name||'')}</b><span class="tiny muted" style="display:block">你的權限：${ROLE_LABEL[ROLE]}</span></span>${isOwner()?'<button class="btn sm ghost" id="lrename">改名</button>':''}</div>
       ${canEdit()?`<div class="srow"><span class="grow">貨幣</span><select class="sel" data-edit="currency" data-title="貨幣">${Object.entries(CUR).map(([k,[n,sym]])=>`<option value="${k}"${S.currency===k?' selected':''}>${n} ${k}（${sym}）</option>`).join('')}</select></div>
@@ -1328,6 +1351,9 @@ function ledgerSettings(){
 }
 function bindLedgerSettings(){
   const $=q=>document.getElementById(q);
+  document.querySelectorAll('[data-lid2]').forEach(b=>b.onclick=()=>{if(b.dataset.lid2!==LID){openLedger(b.dataset.lid2);toast('已切換帳本')}});
+  document.querySelectorAll('[data-accept2]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await B.acceptInvite(b.dataset.accept2,b.dataset.role);openLedger(b.dataset.accept2,b.dataset.role);toast('已加入')}catch(e){b.disabled=false;toast('沒有成功：'+(e.code||e.message))}});
+  if(document.querySelector('[data-act=newledger2]'))document.querySelector('[data-act=newledger2]').onclick=()=>newLedgerForm();
   if($('lrename'))$('lrename').onclick=()=>openSheet('帳本名稱',`<div class="form"><div class="fgroup"><div class="f"><label for="lrn">名稱</label><input id="lrn" type="text" value="${esc(LEDGER?.name||'')}"></div></div></div>`,root=>{
     root.querySelector('#lrsave').onclick=()=>{const v=root.querySelector('#lrn').value.trim();if(!v){toast('請輸入名稱');return}B.renameLedger(v).catch(fail);closeSheet();toast('已更新')}},{label:'儲存',id:'lrsave'});
   if($('linvite'))$('linvite').onclick=()=>inviteForm();

@@ -300,3 +300,10 @@ body.readonly .tabbar nav{grid-template-columns:repeat(5,1fr)}
 .bar{height:8px;border-radius:99px;background:var(--surface2);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
 .negc{color:var(--neg)}
+
+/* ---------- tab bar: 首頁 收支 ＋ 資金 設定 ---------- */
+.tabbar nav{grid-template-columns:repeat(5,1fr)}
+body.readonly .tabbar nav{grid-template-columns:repeat(4,1fr)}
+.subnav{align-self:flex-start;margin:-2px 0 12px}
+.subnav button{min-width:76px}
+#cpk .chips{gap:8px}
