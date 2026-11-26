@@ -1,5 +1,5 @@
 import * as B from './backend.js';
-import { exportWorkbook, parseWorkbook } from './excel.js';
+import { exportWorkbook, parseWorkbook, exportMonthReport } from './excel.js';
 
 const ICON = {
   house:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
@@ -368,8 +368,8 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 function topbar(t,sub,right=''){return `<header class="top"><div class="grow"><h1>${t}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div>${right}</header>`}
 const gearBtn=()=>`<button class="fsel sel lpill" data-act="ledgers" aria-label="切換帳本"><span class="ell">${esc(LEDGER?.name||'帳本')}</span>${CHEV}</button>`;
 // pages that share a tab: 收支 = 明細 + 圖表, 資金 = 預算 + 存錢罐
-const SUBNAV={list:[['list','明細'],['chart','圖表']],budget:[['budget','預算'],['jar','存錢罐']]};
-const GROUP_OF={list:'list',chart:'list',budget:'budget',jar:'budget'},LAST_SUB={list:'list',budget:'budget'};
+const SUBNAV={list:[['list','明細'],['chart','圖表'],['report','月報']],budget:[['budget','預算'],['jar','存錢罐']]};
+const GROUP_OF={list:'list',chart:'list',report:'list',budget:'budget',jar:'budget'},LAST_SUB={list:'list',budget:'budget'};
 const subNav=()=>{const g=GROUP_OF[tab];return g?`<div class="seg subnav" role="tablist">${SUBNAV[g].map(([k,l])=>`<button data-tab="${k}" role="tab" aria-pressed="${tab===k}">${l}</button>`).join('')}</div>`:''};
 function assetOptions(sel,withAll){
   let h=withAll?`<option value="all"${sel==='all'?' selected':''}>全部資產</option>`:`<option value=""${!sel?' selected':''}>不指定資產</option>`;
@@ -583,6 +583,105 @@ function drawChart(el,months,series){
     const sx=x(i)*r.width/W;tip.style.left=Math.min(r.width-tip.offsetWidth,Math.max(0,sx+12>r.width-tip.offsetWidth?sx-tip.offsetWidth-12:sx+12))+'px';tip.style.top='8px'};
   svg.addEventListener('pointermove',move);svg.addEventListener('pointerdown',move);
   svg.addEventListener('pointerleave',()=>{tip.hidden=true;xh.setAttribute('visibility','hidden')});
+}
+
+/* ---------- monthly report ----------
+   One month of one ledger (optionally one asset or group): income, spending and net with the month before and the
+   financial year to date; each jar's opening balance, money in, money out and closing balance; spending and income by
+   category; totals per asset; unpaid bills; next month's expected bills; and every record of the month. */
+const RP={month:addMonths(TODAY.slice(0,7)+'-01',-1).slice(0,7),asset:'all',photos:true};
+function monthReport(ym,assetSel){
+  const ms=ym+'-01',me=addDays(addMonths(ms,1),-1),pms=addMonths(ms,-1),pme=addDays(ms,-1),[fs]=fyRange(fyOf(ms));
+  const inSel=e=>matchAsset(e,assetSel),inRange=(a,b)=>e=>e.date>=a&&e.date<=b;
+  const rows=paid().filter(e=>inSel(e)&&inRange(ms,me)(e)).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  const prev=paid().filter(e=>inSel(e)&&inRange(pms,pme)(e)),ytd=paid().filter(e=>inSel(e)&&inRange(fs,me)(e));
+  const tot=l=>({income:earned(l),spend:spent(l),net:earned(l)-spent(l)});
+  const group=(list,inc)=>S.cats.filter(c=>(c.kind==='in')===inc).map(c=>{const subs=c.subs.map(x=>({id:x.id,name:x.name,amount:sum(list.filter(e=>e.sub===x.id))})).filter(x=>x.amount>0);
+    return {id:c.id,name:c.name,amount:sum(subs),subs}}).filter(c=>c.amount>0).sort((a,b)=>b.amount-a.amount);
+  const spendCats=group(rows.filter(e=>!isIn(e)),false),incomeCats=group(rows.filter(isIn),true);
+  const assetIds=[...new Set(rows.map(e=>e.asset||''))];
+  const assets=S.folders.flatMap(f=>S.assets.filter(a=>a.folder===f.id&&assetIds.includes(a.id)).map(a=>({group:f.name,id:a.id,name:a.name,...tot(rows.filter(e=>e.asset===a.id))})))
+    .concat(assetIds.includes('')?[{group:'',id:'',name:'未指定資產',...tot(rows.filter(e=>!e.asset))}]:[]);
+  // jars are whole accounts, so their balances ignore the asset filter
+  const jars=S.jars.map(j=>{const l=jarLedger(j.id),before=l.filter(r=>r.date<ms),inM=l.filter(r=>r.date>=ms&&r.date<=me);
+    const open=before.length?before.at(-1).bal:0,inn=inM.filter(r=>r.amount>0).reduce((t,r)=>t+r.amount,0),out=-inM.filter(r=>r.amount<0).reduce((t,r)=>t+r.amount,0);
+    return {id:j.id,name:j.name,open,inn,out,close:open+inn-out}}).filter(j=>j.open||j.inn||j.out);
+  const due=S.expenses.filter(e=>e.status==='due'&&inSel(e)&&(e.due||e.date)<=me).sort((a,b)=>(a.due||a.date)<(b.due||b.date)?-1:1);
+  const nms=addMonths(ms,1),nme=addDays(addMonths(nms,1),-1);
+  const next=S.bills.filter(b=>b.on&&CYC[b.cycle][1]&&(assetSel==='all'||matchAsset({asset:b.asset},assetSel))).flatMap(b=>occurrences(b,nme).filter(o=>o.date>=nms).map(o=>({...o,b,inc:isInSub(b.sub)}))).sort((a,b)=>a.date<b.date?-1:1);
+  return {ym,ms,me,label:`${+ym.slice(0,4)} 年 ${+ym.slice(5)} 月`,assetLabel:assetSel==='all'?'全部資產':assetSel==='none'?'未指定資產':assetSel.startsWith('f:')?`分組：${S.folders.find(f=>'f:'+f.id===assetSel)?.name||''}`:assetOf(assetSel).name,
+    rows,cur:tot(rows),prev:tot(prev),ytd:tot(ytd),ytdLabel:`${fyLabel(fyOf(ms))}累計（${slash(fs)} 起）`,spendCats,incomeCats,assets,jars,due,next};
+}
+const pctTxt=(a,b)=>b>0?`${a>=b?'+':''}${((a-b)/b*100).toFixed(0)}%`:'';
+function renderReport(){
+  const R=monthReport(RP.month,RP.asset),c=R.cur,p=R.prev;
+  const tile=(label,v,note,cls='')=>`<div class="card tile"><div class="label">${label}</div><div class="v num ${cls}">${v}</div>${note?`<div class="tiny faint">${note}</div>`:''}</div>`;
+  const catBlock=(cats,total,inc)=>cats.map(k=>`<div class="rp-cat"><div class="row">${catIcon(k.id,true)}<b class="grow">${esc(k.name)}</b><span class="tiny muted">${total?(k.amount/total*100).toFixed(0):0}%</span><b class="num ${inc?'pos':''}">${money(inc?k.amount:-k.amount,inc)}</b></div>
+    <div class="bar"><i style="width:${total?k.amount/total*100:0}%;${inc?'background:var(--pos)':''}"></i></div>
+    <div class="rp-subs">${k.subs.map(x=>`<span>${esc(x.name)} <span class="num">${money0(x.amount)}</span></span>`).join('')}</div></div>`).join('');
+  main.innerHTML=topbar('收支',`月報・${esc(R.assetLabel)}`,gearBtn())+subNav()+`
+  <div class="stack">
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <div class="seg" role="group" aria-label="月份"><button data-act="rpm" data-v="-1" aria-label="上個月">‹</button><button aria-pressed="true" style="min-width:120px">${R.label}</button><button data-act="rpm" data-v="1" aria-label="下個月">›</button></div>
+      <select id="rpa" data-title="資產範圍" class="sel${RP.asset!=='all'?' on':''}">${assetOptions(RP.asset,true)}</select>
+    </div>
+    <div class="homegrid"><div class="stack">
+      <div class="tiles t3">
+        ${tile('收入',(c.income?'+':'')+money0(c.income),p.income||c.income?`上月 ${money0(p.income)}`:'','pos')}
+        ${tile('支出',money0(-c.spend),p.spend?`上月 ${money0(p.spend)}・${pctTxt(c.spend,p.spend)}`:'')}
+        ${tile('淨額',(c.net>0?'+':'')+money0(c.net),p.net?`上月 ${money0(p.net)}`:'',c.net>=0?'pos':'negc')}
+      </div>
+      <div class="card pad small"><b>${esc(R.ytdLabel)}</b><div class="row between" style="margin-top:4px"><span>收入 <span class="num pos">${money0(R.ytd.income)}</span></span><span>支出 <span class="num">${money0(-R.ytd.spend)}</span></span><span>淨額 <b class="num">${money0(R.ytd.net)}</b></span></div></div>
+      ${R.jars.length?`<section class="card"><div class="pad" style="padding-bottom:4px"><h2 class="h2">帳戶</h2><div class="tiny muted">期末餘額應該和銀行對帳單一致</div></div><div class="scrollx"><table class="tbl num"><thead><tr><th>帳戶</th><th>期初</th><th>存入</th><th>扣除</th><th>期末</th></tr></thead><tbody>
+        ${R.jars.map(j=>`<tr><td>${esc(j.name)}</td><td>${money0(j.open)}</td><td class="pos">${j.inn?'+'+money0(j.inn):'—'}</td><td>${j.out?money0(-j.out):'—'}</td><td class="${j.close<0?'negc':''}"><b>${money0(j.close)}</b></td></tr>`).join('')}</tbody></table></div></section>`:''}
+      <section class="card pad stack" style="gap:10px"><div class="row between"><h2 class="h2">支出</h2><b class="num">${money(-c.spend)}</b></div>${catBlock(R.spendCats,c.spend,false)||'<div class="empty">這個月沒有支出</div>'}</section>
+      ${R.incomeCats.length?`<section class="card pad stack" style="gap:10px"><div class="row between"><h2 class="h2">收入</h2><b class="num pos">${money(c.income,true)}</b></div>${catBlock(R.incomeCats,c.income,true)}</section>`:''}
+    </div><div class="stack">
+      ${R.assets.length?`<section class="card"><div class="pad" style="padding-bottom:4px"><h2 class="h2">依資產</h2></div><div class="scrollx"><table class="tbl num"><thead><tr><th>資產</th><th>收入</th><th>支出</th><th>淨額</th></tr></thead><tbody>
+        ${R.assets.map(a=>`<tr><td>${a.group&&S.folders.length>1?`<span class="tiny faint">${esc(a.group)}・</span>`:''}${esc(a.name)}</td><td class="pos">${a.income?money0(a.income):'—'}</td><td>${a.spend?money0(-a.spend):'—'}</td><td><b>${money0(a.net)}</b></td></tr>`).join('')}</tbody></table></div></section>`:''}
+      ${R.due.length||R.next.length?`<section class="card"><div class="pad" style="padding-bottom:4px"><h2 class="h2">待繳和下個月預計</h2></div><div class="list">
+        ${R.due.map(e=>`<button class="item" data-act="edit" data-id="${e.id}"><span class="when"><b class="num">${md(e.due||e.date)}</b><span>待繳</span></span><span class="grow ell">${esc(withAsset(title(e),e.asset))}</span><span class="amt num">${money(-e.amount)}</span></button>`).join('')}
+        ${R.next.map(o=>`<div class="item"><span class="when"><b class="num">${md(o.date)}</b><span>預計</span></span><span class="grow ell">${esc(withAsset(subName(o.b.sub),o.b.asset))}</span><span class="amt num muted">約 ${money(o.inc?o.amount:-o.amount,o.inc)}</span></div>`).join('')}</div></section>`:''}
+      <section class="card pad stack" style="gap:8px"><b>輸出</b>
+        <label class="row small" style="gap:8px"><input type="checkbox" id="rpph" ${RP.photos?'checked':''}> Excel 附上收據照片</label>
+        <div class="inline"><button class="btn primary sm" data-act="rpx">匯出月報 Excel</button><button class="btn sm" data-act="rptxt">複製文字摘要</button></div>
+        <div class="tiny muted">Excel 有「月報」「明細」兩頁${RP.photos?'，有收據的話再加「收據」一頁':''}。</div></section>
+    </div></div>
+    <div><div class="gh"><span>本月明細（${R.rows.length} 筆）</span><span class="num">${money(c.net,true)}</span></div>
+      <div class="card list">${R.rows.slice().reverse().map(e=>expRow(e,false)).join('')||'<div class="empty">這個月沒有紀錄</div>'}</div></div>
+  </div>`;
+  document.getElementById('rpa').onchange=ev=>{RP.asset=ev.target.value;renderReport()};
+  document.getElementById('rpph').onchange=ev=>{RP.photos=ev.target.checked;renderReport()};
+}
+function reportText(R){
+  const L=[`${LEDGER?.name||''}・${R.label}月報${RP.asset!=='all'?`（${R.assetLabel}）`:''}`,'',
+    `收入 ${money(R.cur.income,true)}｜支出 ${money(-R.cur.spend)}｜淨額 ${money(R.cur.net,true)}`,
+    `上個月：收入 ${money0(R.prev.income)}｜支出 ${money0(-R.prev.spend)}`,`${R.ytdLabel}：收入 ${money0(R.ytd.income)}｜支出 ${money0(-R.ytd.spend)}｜淨額 ${money0(R.ytd.net)}`];
+  if(R.jars.length)L.push('','帳戶：',...R.jars.map(j=>`・${j.name}：期初 ${money(j.open)} → 期末 ${money(j.close)}（存入 ${money0(j.inn)}，扣除 ${money0(j.out)}）`));
+  if(R.spendCats.length)L.push('','支出：',...R.spendCats.map(k=>`・${k.name} ${money0(k.amount)}（${k.subs.map(x=>`${x.name} ${money0(x.amount)}`).join('、')}）`));
+  if(R.incomeCats.length)L.push('','收入：',...R.incomeCats.map(k=>`・${k.name} ${money0(k.amount)}（${k.subs.map(x=>`${x.name} ${money0(x.amount)}`).join('、')}）`));
+  if(R.due.length)L.push('','待繳：',...R.due.map(e=>`・${slash(e.due||e.date)} ${withAsset(title(e),e.asset)} ${money0(e.amount)}`));
+  return L.join('\n');
+}
+async function exportReport(){
+  const R=monthReport(RP.month,RP.asset);toast('正在產生月報…');
+  try{
+    let photos=[];
+    if(RP.photos){
+      for(const e of R.rows.filter(x=>x.receipt)){
+        const r=await B.getReceipt(e.id).catch(()=>null);if(!r)continue;
+        if(r.type==='application/pdf'){photos.push({e,pdf:r.name});continue}
+        const size=await new Promise(ok=>{const im=new Image();im.onload=()=>ok({w:im.naturalWidth,h:im.naturalHeight});im.onerror=()=>ok({w:800,h:600});im.src=r.data});
+        photos.push({e,data:r.data,...size});
+      }
+    }
+    const X=xctx();
+    const blob=await exportMonthReport(X,{...R,photos:photos.map(p=>({date:p.e.date,name:withAsset(title(p.e),p.e.asset),amount:sv(p.e),data:p.data,w:p.w,h:p.h,pdf:p.pdf})),
+      rows:R.rows.map(e=>({date:e.date,asset:e.asset?assetOf(e.asset).name:'',cat:catOf(e.sub)?.name||'',sub:subName(e.sub),name:e.name||subName(e.sub),inc:isIn(e),amount:+e.amount,
+        jar:e.src===NONE?'':srcLabel(e.src),method:e.method||'',note:e.note||'',receipt:!!e.receipt,comments:(S.comments||[]).filter(c=>c.exp===e.id).map(c=>`${c.name||''}：${c.text}`).join('\n')})),
+      due:R.due.map(e=>({date:e.due||e.date,name:withAsset(title(e),e.asset),amount:+e.amount})),next:R.next.map(o=>({date:o.date,name:withAsset(subName(o.b.sub),o.b.asset),amount:o.amount,inc:o.inc}))});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${LEDGER?.name||'Biledger'}_月報_${RP.month}.xlsx`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);
+  }catch(e){console.error(e);toast('匯出失敗：'+e.message)}
 }
 
 /* ---------- budget page ---------- */
@@ -952,7 +1051,7 @@ document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(document
 
 /* ---------- boot, routing & events ---------- */
 
-const VIEWS={home:renderHome,list:renderList,budget:renderBudget,chart:renderChart,jar:renderJar,setup:renderSetup};
+const VIEWS={home:renderHome,list:renderList,report:renderReport,budget:renderBudget,chart:renderChart,jar:renderJar,setup:renderSetup};
 function go(t){tab=VIEWS[t]?t:'home';if(GROUP_OF[tab])LAST_SUB[GROUP_OF[tab]]=tab;
   document.querySelectorAll('.tab[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab||(b.dataset.group||'').split(',').includes(tab)?'page':'false'));
   VIEWS[tab]();window.scrollTo(0,0);try{if(location.hash.slice(1)!==tab)history.replaceState(null,'','#'+tab)}catch(e){}}
@@ -1000,6 +1099,9 @@ document.addEventListener('click',ev=>{
     clearall:()=>clearAllForm(),
     font:()=>{PREFS.font=id;applyFont(id);B.setPrefs(USER.uid,{font:id});renderSetup()},
     ledgers:()=>ledgerSheet(),
+    rpm:()=>{RP.month=addMonths(RP.month+'-01',+b.dataset.v).slice(0,7);renderReport()},
+    rpx:()=>exportReport(),
+    rptxt:()=>{const t=reportText(monthReport(RP.month,RP.asset));(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('已複製文字摘要')).catch(()=>openSheet('文字摘要',`<pre class="req">${esc(t)}</pre>`))},
     bplan:()=>{const m=budgetModel();S.budget={...defaultConfig().budget,...(S.budget||{})};S.budget.plans={...(S.budget.plans||{}),[m.fy]:{total:Math.round(m.projected*(1+m.buf)*100)/100,at:Date.now(),items:Object.fromEntries(m.items.map(i=>[i.b.id,Math.round(i.total*100)/100]))}};saveCfg();rerender();toast('已鎖定本年度預算')},
     bunlock:()=>{const fy=fyOf(TODAY);withUndo('已取消鎖定',()=>{const p={...(S.budget.plans||{})};delete p[fy];S.budget={...S.budget,plans:p}})},
     budgetin:()=>{const sp=savingsPlan(budgetModel());moveForm(null,'in',id);setTimeout(()=>{const a=document.getElementById('ja'),n=document.getElementById('jn');if(a)a.value=sp.per.toFixed(cur()[2]);if(n)n.value='帳單存款'},60)},
@@ -1493,7 +1595,7 @@ function scheduleRender(){clearTimeout(renderT);renderT=setTimeout(()=>{if(!boot
   if(a&&main.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)&&a.id!=='q'){a.addEventListener('blur',scheduleRender,{once:true});return}rerender()},60)}
 function startApp(){gate.hidden=true;shell.hidden=false;if(!booted){booted=true;go(location.hash.slice(1)||'home')}else rerender()}
 // automated tests read the calculations directly
-if(window.__BILEDGER_TEST__)window.__bl={forecastFor,budgetModel,savingsPlan,occurrences,state:()=>S};
+if(window.__BILEDGER_TEST__)window.__bl={forecastFor,budgetModel,savingsPlan,occurrences,monthReport,reportText,state:()=>S};
 let unsubL=null;
 function openLedger(id,roleHint){
   unsub?.();unsub=null;LID=id;clearTimeout(cfgTimer);cfgDirty=false;

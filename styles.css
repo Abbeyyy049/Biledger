@@ -307,3 +307,14 @@ body.readonly .tabbar nav{grid-template-columns:repeat(4,1fr)}
 .subnav{align-self:flex-start;margin:-2px 0 12px}
 .subnav button{min-width:76px}
 #cpk .chips{gap:8px}
+
+/* ---------- monthly report ---------- */
+.rp-cat{display:flex;flex-direction:column;gap:5px}
+.rp-cat .row{gap:8px}
+.rp-subs{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted)}
+.tiles .tile .v{font-size:clamp(15px,4.6vw,22px)}
+.tiles.t3{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tiles.t3 .tile{padding:12px;min-width:0}
+.tiles.t3 .v{font-size:clamp(15px,4.4vw,22px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v{white-space:nowrap}
+.tbl td,.tbl th{padding:8px 8px}

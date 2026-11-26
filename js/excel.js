@@ -317,3 +317,89 @@ export async function parseWorkbook(file, X) {
 }
 
 function pick(S) { const c = {}; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'fyStart', 'budget'].forEach(k => c[k] = S[k]); return c; }
+
+// One month of one ledger for family or an accountant: 月報 (summary, accounts, categories, assets, bills), 明細, and 收據.
+export async function exportMonthReport(X, R) {
+  const ExcelJS = await lib();
+  const [, sym, dp] = X.cur, num = `"${sym}"#,##0${dp ? '.' + '0'.repeat(dp) : ''}`, MONEY = `${num};-${num};"-"`, PCT = '0%';
+  const wb = new ExcelJS.Workbook(); wb.creator = 'Biledger';
+  const ws = wb.addWorksheet('月報', { views: [{ showGridLines: false }], pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  [24, 16, 16, 16, 16].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  titleCell(ws.getCell('A1'), `${X.ledgerName || 'Biledger'}・${R.label}月報`);
+  note(ws.getCell('A2'), `${R.assetLabel}・${R.ms.replace(/-/g, '/')} – ${R.me.replace(/-/g, '/')}・貨幣 ${X.currencyCode || ''}・匯出日期 ${new Date().toISOString().slice(0, 10).replace(/-/g, '/')}・只算已付`);
+  let r = 4;
+  const section = (t, hint) => { ws.getCell(r, 1).value = t; ws.getCell(r, 1).font = { name: FONT, size: 12, bold: true }; if (hint) note(ws.getCell(r, 2), hint); r++; };
+  const put = (row, vals, fmts = [], opts = {}) => vals.forEach((v, i) => { const c = ws.getCell(row, i + 1); c.value = v; cellStyle(c, fmts[i] || null, opts); });
+  const head = cols => { cols.forEach((h, i) => { const c = ws.getCell(r, i + 1); c.value = h; c.font = { name: FONT, bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } }; c.alignment = { horizontal: i ? 'right' : 'left' }; }); r++; };
+
+  section('摘要');
+  head(['項目', '本月', '上個月', R.ytdLabel.replace(/（.*/, '')]);
+  const s0 = r;
+  put(r++, ['收入', R.cur.income, R.prev.income, R.ytd.income], [null, MONEY, MONEY, MONEY]);
+  put(r++, ['支出', R.cur.spend, R.prev.spend, R.ytd.spend], [null, MONEY, MONEY, MONEY]);
+  ['B', 'C', 'D'].forEach((col, i) => { const c = ws.getCell(r, i + 2); c.value = { formula: `${col}${s0}-${col}${s0 + 1}`, result: r2([R.cur, R.prev, R.ytd][i].net) }; cellStyle(c, MONEY, { bold: true, soft: true }); });
+  const nl = ws.getCell(r, 1); nl.value = '淨額（收入−支出）'; cellStyle(nl, null, { bold: true, soft: true }); r += 2;
+
+  if (R.jars.length) {
+    section('帳戶', '期末餘額應該和銀行對帳單一致');
+    head(['帳戶', '期初餘額', '存入', '扣除', '期末餘額']);
+    R.jars.forEach(j => { put(r, [j.name, j.open, j.inn, j.out], [null, MONEY, MONEY, MONEY]);
+      const c = ws.getCell(r, 5); c.value = { formula: `B${r}+C${r}-D${r}`, result: r2(j.close) }; cellStyle(c, MONEY, { bold: true }); r++; });
+    r++;
+  }
+  const cats = (title, list, total) => {
+    section(title);
+    head(['類別', '金額', '佔比']);
+    list.forEach(k => {
+      put(r, [k.name, k.amount, total ? k.amount / total : 0], [null, MONEY, PCT], { bold: true, soft: true }); r++;
+      k.subs.forEach(x => { put(r, [`　${x.name}`, x.amount, total ? x.amount / total : 0], [null, MONEY, PCT]); r++; });
+    });
+    put(r, ['合計', total, list.length ? 1 : 0], [null, MONEY, PCT], { bold: true }); r += 2;
+  };
+  if (R.spendCats.length) cats('支出（依類別）', R.spendCats, R.cur.spend);
+  if (R.incomeCats.length) cats('收入（依類別）', R.incomeCats, R.cur.income);
+  if (R.assets.length) {
+    section('依資產');
+    head(['資產', '收入', '支出', '淨額']);
+    R.assets.forEach(a => { put(r, [(a.group ? a.group + '・' : '') + a.name, a.income, a.spend], [null, MONEY, MONEY]);
+      const c = ws.getCell(r, 4); c.value = { formula: `B${r}-C${r}`, result: r2(a.net) }; cellStyle(c, MONEY, { bold: true }); r++; });
+    r++;
+  }
+  if (R.due.length || R.next.length) {
+    section('待繳和下個月預計');
+    head(['日期', '項目', '金額', '狀態']);
+    R.due.forEach(d => { put(r++, [utc(d.date), d.name, d.amount, '待繳'], [DATE, null, MONEY]); });
+    R.next.forEach(d => { put(r++, [utc(d.date), d.name, r2(d.amount), d.inc ? '預計收入' : '預計（估算）'], [DATE, null, MONEY]); });
+  }
+
+  // 明細
+  const d = wb.addWorksheet('明細', { views: [{ state: 'frozen', ySplit: 2, showGridLines: false }] });
+  const cols = [['日期', 12], ['資產', 22], ['大類', 11], ['類別', 14], ['名稱', 22], ['收入', 13], ['支出', 13], ['存錢罐', 12], ['付款方式', 18], ['備註', 30], ['收據', 7], ['留言', 30]];
+  const first = 3, last = 2 + Math.max(R.rows.length, 1);
+  d.getCell('A1').value = '合計'; d.getCell('A1').font = { name: FONT, bold: true };
+  [['F1', `SUBTOTAL(109,F${first}:F${last})`, R.cur.income], ['G1', `SUBTOTAL(109,G${first}:G${last})`, R.cur.spend], ['I1', 'F1-G1', R.cur.net]].forEach(([a, f, v]) => { const c = d.getCell(a); c.value = { formula: f, result: r2(v) }; c.font = { name: FONT, bold: true }; c.numFmt = MONEY; });
+  d.getCell('H1').value = '淨額'; d.getCell('H1').font = { name: FONT, bold: true }; d.getCell('H1').alignment = { horizontal: 'right' };
+  header(d, 2, cols);
+  R.rows.forEach((e, i) => { const row = first + i;
+    [utc(e.date), e.asset, e.cat, e.sub, e.name, e.inc ? e.amount : null, e.inc ? null : e.amount, e.jar, e.method, e.note, e.receipt ? '有' : '', e.comments].forEach((v, j) => {
+      const c = d.getCell(row, j + 1); c.value = v; cellStyle(c, j === 0 ? DATE : (j === 5 || j === 6) ? MONEY : null, { center: [0, 10].includes(j) }); if (j === 11 || j === 9) c.alignment = { wrapText: true, vertical: 'top' }; }); });
+  d.autoFilter = { from: { row: 2, column: 1 }, to: { row: last, column: cols.length } };
+
+  // 收據: each photo under a caption, scaled to 360 px wide
+  if (R.photos?.length) {
+    const p = wb.addWorksheet('收據', { views: [{ showGridLines: false }] });
+    p.getColumn(1).width = 60;
+    let row = 1;
+    for (const ph of R.photos) {
+      const cap = p.getCell(row, 1); cap.value = `${ph.date.replace(/-/g, '/')}　${ph.name}　${ph.amount < 0 ? '-' : ''}${sym}${Math.abs(ph.amount).toFixed(dp)}`; cap.font = { name: FONT, bold: true };
+      row++;
+      if (ph.pdf) { const c = p.getCell(row, 1); c.value = `PDF 收據：${ph.pdf}（請在 App 內查看）`; c.font = { name: FONT, color: { argb: 'FF6B7570' } }; row += 2; continue; }
+      const w = 360, h = Math.round(w * (ph.h || 1) / (ph.w || 1));
+      const id = wb.addImage({ base64: ph.data, extension: 'jpeg' });
+      p.addImage(id, { tl: { col: 0, row: row - 1 }, ext: { width: w, height: h } });
+      row += Math.ceil(h / 20) + 2;
+    }
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
