@@ -60,3 +60,14 @@ users/{uid}/...                        舊版資料，第一次登入新版時�
 
 年度預算 =（本財年已付 + 到年底的預估）×（1 + 緩衝比例），可以鎖定。
 存錢計畫：建議每期金額是「每一筆帳單到期時，帳單帳戶都夠付」的最小固定金額，和「平均每期」取比較大的。
+
+## 推播通知
+
+- App：設定 → 偏好 → 推播通知。iPhone 要 iOS 16.4 以上，而且要先「加入主畫面」，從主畫面打開才能開啟。
+- 每台裝置的通知代碼存在 `users/{uid}/meta/push`，連同提醒時間、時區、要提醒的種類和帳本。
+- `.github/workflows/notify.yml` 每小時執行 `scripts/notify.mjs`：到了每個人設定的時間，就檢查他所屬的帳本，
+  有快到期的固定帳單、待繳紀錄或低於提醒金額的存錢罐，就透過 Firebase Cloud Messaging 送一則通知。
+- 需要的設定：
+  1. Firebase 主控台 → 專案設定 → Cloud Messaging → 網路設定 → Web Push 憑證 → 產生金鑰組，把「公開金鑰」填到 `js/backend.js` 的 `VAPID_KEY`。
+  2. Firebase 主控台 → 專案設定 → 服務帳戶 → 產生新的私密金鑰（JSON 檔）。
+  3. GitHub repository → Settings → Secrets and variables → Actions → New repository secret，名稱 `FIREBASE_SERVICE_ACCOUNT`，內容貼上整個 JSON 檔。

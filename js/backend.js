@@ -12,6 +12,7 @@ import {
   doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, writeBatch, updateDoc, addDoc,
   query, where, FieldPath, deleteField, connectFirestoreEmulator,
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
+import { getMessaging, getToken, deleteToken, isSupported as messagingSupported } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-messaging.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyALO8g4Jb2nSHwOoOnG6ENIzHlghDF4r9k',
@@ -168,6 +169,28 @@ export async function acceptInvite(id, role) {
 }
 export const leaveLedger = id => updateDoc(ledgerRef(id), new FieldPath('members', me().uid), deleteField(), new FieldPath('names', me().uid), deleteField());
 export async function deleteLedger() { await clearAll(); await deleteDoc(ledgerRef()); }
+
+/* ---------- push notifications ----------
+   users/{uid}/meta/push: on, tokens {deviceToken: {ua, at}}, hour (0–23), tz, types {bills, jars}, ledgers {lid: false to leave out}
+   The tokens are read by scripts/notify.mjs (GitHub Actions), which sends the daily reminders. */
+// Firebase console → 專案設定 → Cloud Messaging → 網路設定 → Web Push 憑證 → the public key
+export const VAPID_KEY = '';
+export async function pushSupported() { try { return !!VAPID_KEY && 'serviceWorker' in navigator && await messagingSupported(); } catch (e) { return false; } }
+export async function enablePush(uid, settings) {
+  const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+  const token = await getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+  await setDoc(doc(db, 'users', uid, 'meta', 'push'), { on: true, ...settings, tokens: { [token]: { ua: navigator.userAgent.slice(0, 120), at: Date.now() } } }, { merge: true });
+  try { localStorage.setItem('pushToken', token); } catch (e) {}
+  return token;
+}
+export async function disablePush(uid) {
+  let t = null; try { t = localStorage.getItem('pushToken'); localStorage.removeItem('pushToken'); } catch (e) {}
+  try { await deleteToken(getMessaging(app)); } catch (e) {}
+  if (t) await updateDoc(doc(db, 'users', uid, 'meta', 'push'), new FieldPath('tokens', t), deleteField()).catch(() => {});
+}
+export const thisDeviceToken = () => { try { return localStorage.getItem('pushToken'); } catch (e) { return null; } };
+export async function getPush(uid) { const s = await getDoc(doc(db, 'users', uid, 'meta', 'push')).catch(() => null); return s?.exists() ? s.data() : {}; }
+export const setPush = (uid, p) => setDoc(doc(db, 'users', uid, 'meta', 'push'), p, { merge: true });
 
 export async function getPrefs(uid) { const s = await getDoc(doc(db, 'users', uid, 'meta', 'prefs')).catch(() => null); return s?.exists() ? s.data() : {}; }
 export const setPrefs = (uid, p) => setDoc(doc(db, 'users', uid, 'meta', 'prefs'), p, { merge: true }).catch(() => {});

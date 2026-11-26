@@ -959,10 +959,10 @@ function renderSetup(){
       <button class="btn sm ${b.on?'primary':'ghost'}" data-act="billon" data-id="${b.id}" aria-label="${b.on?'關閉提醒':'開啟提醒'}">${b.on?'開':'關'}</button></div>`}).join('')||'<div class="empty">還沒有固定帳單</div>'}
       <button class="item" data-act="newbill"><span class="cic" style="--k:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="grow" style="color:var(--accent);font-weight:600">新增固定帳單</span></button></div>
       <div class="card"><div class="srow"><b class="grow">存錢罐低於多少時提醒</b></div>${S.jars.map(j=>`<div class="srow" style="padding-left:28px"><span class="grow">${esc(j.name)}</span><input type="number" class="search num" style="width:120px;text-align:right;padding:6px 10px" value="${j.alert}" data-edit="jaralert" data-id="${j.id}" aria-label="${esc(j.name)} 提醒金額"></div>`).join('')||'<div class="srow small muted">還沒有存錢罐</div>'}</div>
-      <div class="hint">提醒目前顯示在首頁的「接下來要繳」。iPhone 推播通知會在下一版加上。</div>`;
+      <div class="hint">提醒會顯示在首頁的「接下來要繳」。要收到 iPhone 推播通知，到「設定 → 偏好 → 推播通知」開啟。</div>`;
   } else if(setupTab==='prefs'){
     loadFonts(Object.keys(FONTS));
-    body=`<div class="card"><div class="srow"><b class="grow">字體</b></div>${Object.entries(FONTS).map(([k,[n,fam]])=>`<button class="item" data-act="font" data-id="${k}" style="font-family:${fam?`'${fam}',`:''}${BASE_UI.replace(/"/g,"'")}">
+    body=pushCard()+`<div class="card"><div class="srow"><b class="grow">字體</b></div>${Object.entries(FONTS).map(([k,[n,fam]])=>`<button class="item" data-act="font" data-id="${k}" style="font-family:${fam?`'${fam}',`:''}${BASE_UI.replace(/"/g,"'")}">
         <span class="chk${(PREFS.font||'system')===k?' on':''}" style="border-radius:50%">${(PREFS.font||'system')===k?ICON.check:''}</span>
         <span class="grow"><span style="display:block;font-weight:600">${n}</span><span class="small muted">比記本・十一月電費 ${money(-238.68)}・存錢罐</span></span></button>`).join('')}</div>
       <div class="card"><div class="srow"><b class="grow">自己的字型檔</b></div>
@@ -988,6 +988,7 @@ function renderSetup(){
   }
   main.innerHTML=topbar('設定','',gearBtn())+`<div class="stack"><div class="seg" role="tablist" style="align-self:flex-start">${tabs.map(([k,l])=>`<button data-act="stab" data-v="${k}" aria-pressed="${setupTab===k}">${l}</button>`).join('')}</div>${body}</div>`;
   if(setupTab==='ledger')bindLedgerSettings();
+  if(setupTab==='prefs')bindPush();
   const imp=document.getElementById('impfile');if(imp)imp.onchange=ev=>{const f=ev.target.files[0];if(f)importFlow(f,document.getElementById('impwrap'))};
   const fu=document.getElementById('fontup');if(fu)fu.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;document.getElementById('fontmsg').textContent='讀取中…';
     try{await uploadFont(f);S.font='custom';applyFont('custom');saveCfg();toast('已套用字型');renderSetup()}catch(e){document.getElementById('fontmsg').textContent='';toast(e.message)}};
@@ -1099,6 +1100,9 @@ document.addEventListener('click',ev=>{
     clearall:()=>clearAllForm(),
     font:()=>{PREFS.font=id;applyFont(id);B.setPrefs(USER.uid,{font:id});renderSetup()},
     ledgers:()=>ledgerSheet(),
+    pushon:()=>pushOn(b),
+    pushoff:async()=>{await B.disablePush(USER.uid);PUSH=await B.getPush(USER.uid);if(!Object.keys(PUSH.tokens||{}).length)await B.setPush(USER.uid,{on:false});toast('這台裝置已關閉通知');renderSetup()},
+    pushtest:()=>pushTest(),
     rpm:()=>{RP.month=addMonths(RP.month+'-01',+b.dataset.v).slice(0,7);renderReport()},
     rpx:()=>exportReport(),
     rptxt:()=>{const t=reportText(monthReport(RP.month,RP.asset));(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('已複製文字摘要')).catch(()=>openSheet('文字摘要',`<pre class="req">${esc(t)}</pre>`))},
@@ -1520,6 +1524,52 @@ function viewExpense(e){
   });
 }
 
+/* ---------- push notifications (settings → 偏好) ---------- */
+let PUSH=null, PUSH_OK=null; // saved settings for this person; whether this browser can receive pushes
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const isInstalled=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+function pushCard(){
+  if(PUSH===null||PUSH_OK===null){Promise.all([B.getPush(USER.uid),B.pushSupported()]).then(([p,ok])=>{PUSH=p;PUSH_OK=ok;if(tab==='setup'&&setupTab==='prefs')renderSetup()});
+    return '<div class="card pad"><div class="spin"></div></div>'}
+  const perm=typeof Notification!=='undefined'?Notification.permission:'unsupported',mine=B.thisDeviceToken(),onHere=perm==='granted'&&mine&&PUSH.tokens?.[mine];
+  const devices=Object.keys(PUSH.tokens||{}).length;
+  let state;
+  if(!B.VAPID_KEY)state='<div class="small muted">推播通知還沒完成設定：需要在 Firebase 產生 Web Push 金鑰。</div>';
+  else if(isIOS()&&!isInstalled())state='<div class="proto" style="text-align:left">iPhone 要先把 App 加到主畫面才能收通知：用 Safari 打開這個網站 → 按下方的「分享」→「加入主畫面」→ 從主畫面的 Biledger 圖示打開，再回到這裡開啟通知。（需要 iOS 16.4 以上）</div>';
+  else if(!PUSH_OK)state='<div class="small muted">這個瀏覽器不支援推播通知。iPhone 請用 iOS 16.4 以上、從主畫面打開的 Biledger；電腦可以用 Chrome、Edge 或 Safari。</div>';
+  else if(perm==='denied')state='<div class="proto" style="text-align:left">通知被關閉了。iPhone：設定 → 通知 → Biledger → 允許通知；電腦：在瀏覽器網址列旁的網站設定裡允許通知。</div>';
+  else state=onHere?`<div class="row between"><span class="small" style="color:var(--accent);font-weight:600">這台裝置已開啟 ✓</span><span class="inline"><button class="btn sm ghost" data-act="pushtest">測試</button><button class="btn sm ghost" data-act="pushoff">關閉</button></span></div>`
+    :`<button class="btn primary" data-act="pushon">在這台裝置開啟通知</button>`;
+  const P={hour:9,types:{bills:true,jars:true},ledgers:{},...PUSH},types=P.types||{};
+  const opts=devices||onHere?`<div class="fgroup">
+      <div class="f"><label for="phour">每天幾點提醒</label><select id="phour" data-title="每天幾點提醒">${[...Array(24)].map((_,h)=>`<option value="${h}"${+P.hour===h?' selected':''}>${pad(h)}:00</option>`).join('')}</select></div>
+      <div class="f"><label>帳單快到期</label><div class="seg" style="margin-left:auto"><button type="button" data-pt="bills" data-v="1" aria-pressed="${types.bills!==false}">提醒</button><button type="button" data-pt="bills" data-v="0" aria-pressed="${types.bills===false}">不要</button></div></div>
+      <div class="f"><label>存錢罐餘額不足</label><div class="seg" style="margin-left:auto"><button type="button" data-pt="jars" data-v="1" aria-pressed="${types.jars!==false}">提醒</button><button type="button" data-pt="jars" data-v="0" aria-pressed="${types.jars===false}">不要</button></div></div>
+      ${LEDGERS.map(l=>`<div class="f"><label class="ell" style="width:auto;flex:1">${esc(l.name)}</label><div class="seg"><button type="button" data-pl="${l.id}" data-v="1" aria-pressed="${P.ledgers?.[l.id]!==false}">包含</button><button type="button" data-pl="${l.id}" data-v="0" aria-pressed="${P.ledgers?.[l.id]===false}">不要</button></div></div>`).join('')}</div>
+    <div class="hint">每天在這個時間（${esc(Intl.DateTimeFormat().resolvedOptions().timeZone||'')}）檢查一次：固定帳單在「提前幾天提醒」的範圍內、待繳的紀錄、存錢罐低於提醒金額，有的話每本帳本送一則通知。${devices>1?`目前有 ${devices} 台裝置會收到。`:''}</div>`:'';
+  return `<div class="card pad stack" style="gap:10px"><b>推播通知</b>${state}${opts}</div>`;
+}
+function bindPush(){
+  const save=patch=>{PUSH={...PUSH,...patch};B.setPush(USER.uid,patch).catch(fail);renderSetup()};
+  const h=document.getElementById('phour');if(h)h.onchange=()=>save({hour:+h.value,tz:Intl.DateTimeFormat().resolvedOptions().timeZone});
+  document.querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>save({types:{...(PUSH.types||{}),[b.dataset.pt]:b.dataset.v==='1'}}));
+  document.querySelectorAll('[data-pl]').forEach(b=>b.onclick=()=>save({ledgers:{...(PUSH.ledgers||{}),[b.dataset.pl]:b.dataset.v==='1'}}));
+}
+async function pushOn(btn){
+  if(btn)btn.disabled=true;
+  try{
+    // the permission prompt has to come straight from the tap
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){toast('沒有允許通知');renderSetup();return}
+    await B.enablePush(USER.uid,{hour:PUSH?.hour??9,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,types:PUSH?.types||{bills:true,jars:true}});
+    PUSH=await B.getPush(USER.uid);toast('已開啟通知');renderSetup();
+  }catch(e){console.error(e);toast('開啟失敗：'+(e.code||e.message));if(btn)btn.disabled=false}
+}
+async function pushTest(){
+  try{const reg=await navigator.serviceWorker.ready;await reg.showNotification('Biledger 測試通知',{body:'通知可以正常顯示。每天的提醒會在你設定的時間送出。',icon:'icons/icon-192.png',tag:'test'});toast('已送出測試通知')}
+  catch(e){toast('測試失敗：'+e.message)}
+}
+
 /* ---------- sign-in gate ---------- */
 const gate=document.getElementById('gate'), shell=document.getElementById('shell');
 const GLOGO=`<div class="logo">${ICON.jar}</div>`;
@@ -1624,7 +1674,7 @@ function openLedger(id,roleHint){
 }
 B.onUser(async(user,err)=>{
   if(err){showLogin(err.message);return}
-  unsub?.();unsub=null;unsubL?.();unsubL=null;USER=user;booted=false;LID=null;LEDGERS=[];INVITES=[];
+  unsub?.();unsub=null;unsubL?.();unsubL=null;USER=user;booted=false;LID=null;LEDGERS=[];INVITES=[];PUSH=null;PUSH_OK=null;
   if(!user){showLogin();return}
   showGate('<div class="spin"></div><div class="small muted">讀取資料中…</div>');
   PREFS=await B.getPrefs(user.uid);if(PREFS.font)applyFont(PREFS.font);
@@ -1641,7 +1691,8 @@ B.onUser(async(user,err)=>{
           try{const id=await B.moveLegacy(user.uid,'房車帳本',legacy);openLedger(id,'owner')}catch(err2){rulesError(err2)}return}
         showWelcome();return;
       }
-      openLedger((LEDGERS.find(l=>l.id===PREFS.last)||LEDGERS[0]).id);return;
+      const deep=new URLSearchParams(location.search).get('ledger');if(deep)try{history.replaceState(null,'',location.pathname+location.hash)}catch(e){}
+      openLedger((LEDGERS.find(l=>l.id===deep)||LEDGERS.find(l=>l.id===PREFS.last)||LEDGERS[0]).id);return;
     }
     if(LID&&!cur){if(LEDGERS.length){openLedger(LEDGERS[0].id);go('home')}else{LID=null;booted=false;unsub?.();showWelcome()}}
     else if(!LID&&!LEDGERS.length&&!gate.hidden)showWelcome();
