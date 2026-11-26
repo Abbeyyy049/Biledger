@@ -98,12 +98,12 @@ const DEFAULT_CATS=[
   {id:'misc',name:'其他',subs:[['other','其他']]},
   {id:'income',name:'收入',kind:'in',subs:[['salary','薪資'],['rentin','租金收入'],['interest','利息／股息'],['refund','退款'],['gift','紅包／贈與'],['otherin','其他收入']]},
 ];
-const CFG_KEYS=['folders','assets','cats','methods','fields','jars','bills','buffer','currency','fyStart'];
+const CFG_KEYS=['folders','assets','cats','methods','fields','jars','bills','buffer','currency','fyStart','budget'];
 function defaultConfig(){
   return {v:4,folders:[{id:'f_me',name:'個人'}],assets:[],
     cats:DEFAULT_CATS.map(c=>({...c,subs:c.subs.map(([id,name])=>({id,name}))})),
     methods:['現金 Cash','信用卡 Credit Card','簽帳金融卡 Debit Card','銀行轉帳 Bank Transfer','自動扣款 Direct Debit','行動支付 Mobile Pay'],
-    fields:[],jars:[],bills:[],buffer:0,currency:guessCurrency(),fyStart:1};
+    fields:[],jars:[],bills:[],buffer:0,currency:guessCurrency(),fyStart:1,budget:{buffer:10,jar:'',every:'month',days:30,extra:0,plans:{}}};
 }
 // starting point for a company ledger (Australian financial year, GST/BAS)
 function companyConfig(){
@@ -207,30 +207,141 @@ function jarLedger(jid){
 }
 const jarBalance=jid=>{const l=jarLedger(jid);return l.length?l.at(-1).bal:0};
 
+/* ---------- bill forecasts (statistics, no AI) ----------
+   For one recurring bill, the next amount is
+     base   = average of the last year of payments (the last 12 / 4 / 2 / 1 for monthly / quarterly / half-yearly / yearly bills)
+   × season = average of payments made within a month of the same calendar month ÷ average of the last 12 months
+              (only with at least 11 months of history, limited to 0.6–1.6)
+   × trend  = 1 + yearly growth × years from the middle of the base period (limited to ±15% a year), where yearly growth is
+              – with seasonal data (≥ 11 months): average of the last 12 months ÷ average of the 12 months before − 1
+                (comparing whole years keeps seasons out of the trend; needs payments in both years)
+              – otherwise: least-squares slope of amount over time ÷ the average amount (at least 4 payments over 6 months)
+   A manual amount always wins; with no history the bill's initial budget is used.  */
+const PER_YEAR={monthly:12,quarterly:4,half:2,yearly:1};
+const mean=a=>a.length?a.reduce((t,x)=>t+x,0)/a.length:0;
+const clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,x));
+const dayNo=d=>Math.round(parse(d)/864e5);
+const billHist=b=>paid().filter(e=>e.asset===b.asset&&e.sub===b.sub&&!isIn(e)).sort((x,y)=>x.date<y.date?-1:1);
+function forecastFor(b,when){
+  if(+b.manual>0)return {amount:+b.manual,method:'manual',label:'手動設定的金額',parts:[]};
+  const all=billHist(b),h=all.filter(e=>diff(e.date,TODAY)<=730);
+  if(!h.length)return +b.init>0?{amount:+b.init,method:'init',label:'初始預算（還沒有實際帳單）',parts:[]}:{amount:0,method:'none',label:'還沒有資料，請設定初始預算',parts:[]};
+  const k=PER_YEAR[b.cycle]||12, recent=h.slice(-k), base=mean(recent.map(e=>+e.amount));
+  const parts=[`最近 ${recent.length} 次平均 ${money(base)}`];
+  if(h.length<3)return {amount:base,method:'avg',label:`最近 ${recent.length} 次的平均`,parts,base,season:1,growth:0};
+  const span=diff(h[0].date,h.at(-1).date);
+  let season=1;
+  if(k>1&&span>=330&&when){
+    const tm=+when.slice(5,7),near=h.filter(e=>{const d=Math.abs(+e.date.slice(5,7)-tm);return Math.min(d,12-d)<=1});
+    const year=h.filter(e=>diff(e.date,h.at(-1).date)<=365);
+    if(near.length&&mean(year.map(e=>+e.amount))>0)season=clamp(mean(near.map(e=>+e.amount))/mean(year.map(e=>+e.amount)),0.6,1.6);
+  }
+  let growth=0,trendHow='';
+  if(span>=330){
+    const end=h.at(-1).date,y1=h.filter(e=>diff(e.date,end)<365),y0=h.filter(e=>{const d=diff(e.date,end);return d>=365&&d<730});
+    if(y0.length>=Math.max(1,Math.ceil(k/2))&&y1.length>=Math.max(1,Math.ceil(k/2))&&mean(y0.map(e=>+e.amount))>0){growth=clamp(mean(y1.map(e=>+e.amount))/mean(y0.map(e=>+e.amount))-1,-0.15,0.15);trendHow='比前一年'}
+  }else if(h.length>=4&&span>=180){trendHow='直線趨勢';
+    const xs=h.map(e=>(dayNo(e.date)-dayNo(h[0].date))/365),ys=h.map(e=>+e.amount),mx=mean(xs),my=mean(ys);
+    const sxx=xs.reduce((t,x)=>t+(x-mx)**2,0);
+    if(sxx>0&&my>0)growth=clamp(xs.reduce((t,x,i)=>t+(x-mx)*(ys[i]-my),0)/sxx/my,-0.15,0.15);
+  }
+  const midDay=mean(recent.map(e=>dayNo(e.date))),yrs=when?(dayNo(when)-midDay)/365:0;
+  const trend=clamp(1+growth*yrs,0.7,1.3);
+  if(Math.abs(season-1)>=0.005)parts.push(`季節係數 ×${season.toFixed(2)}`);
+  if(Math.abs(growth)>=0.005)parts.push(`${trendHow} ${growth>0?'+':''}${(growth*100).toFixed(0)}%／年`);
+  return {amount:base*season*trend,method:'stat',label:parts.length>1?'歷史平均＋季節與趨勢':`最近 ${recent.length} 次的平均`,parts,base,season,growth,trend};
+}
+// next due date of a bill: an unpaid record (待繳) if there is one, else the last payment plus one cycle, else the first due date set by hand
+function nextDue(b){
+  const due=S.expenses.find(e=>e.status==='due'&&e.asset===b.asset&&e.sub===b.sub);
+  if(due)return {date:due.due||due.date,exp:due};
+  const last=billHist(b).at(-1);
+  if(last)return {date:addMonths(last.date,CYC[b.cycle][1]),last};
+  return b.first?{date:b.first}:null;
+}
+// every expected payment of a bill from its next due date until `end` (an unpaid record keeps its own amount)
+function occurrences(b,end){
+  const n=nextDue(b),step=CYC[b.cycle][1],out=[];if(!n||!step)return out;
+  let d=n.date;
+  if(n.exp){out.push({date:d,amount:+n.exp.amount||forecastFor(b,d).amount,known:true});d=addMonths(d,step)}
+  while(d<=end&&out.length<200){out.push({date:d,amount:forecastFor(b,d).amount});d=addMonths(d,step)}
+  return out.filter(o=>o.date<=end);
+}
 function upcoming(){
   const out=[];
   S.expenses.filter(e=>e.status==='due').forEach(e=>out.push({kind:'due',date:e.due||e.date,amount:+e.amount||0,asset:e.asset,sub:e.sub,exp:e,src:e.src}));
   S.bills.filter(b=>b.on&&CYC[b.cycle][1]).forEach(b=>{
     if(out.some(o=>o.asset===b.asset&&o.sub===b.sub)) return;
-    const hist=paid().filter(e=>e.asset===b.asset&&e.sub===b.sub).sort((a,b)=>a.date<b.date?-1:1);
-    const last=hist.at(-1); if(!last) return;
-    const same=hist.filter(e=>e.cycle===b.cycle), recent=(same.length?same:hist).slice(-3);
-    // yearly bills: last price is the best guess; shorter cycles: average of the last 3
-    const avg=b.cycle==='yearly'?last.amount:sum(recent)/recent.length;
-    out.push({kind:'bill',date:addMonths(last.date,CYC[b.cycle][1]),amount:last.amount,avg,asset:b.asset,sub:b.sub,bill:b,last,src:last.src});
+    const n=nextDue(b);if(!n)return;
+    const f=forecastFor(b,n.date);
+    out.push({kind:'bill',date:n.date,amount:f.amount,asset:b.asset,sub:b.sub,bill:b,last:n.last,src:n.last?.src||S.budget?.jar||NONE,f});
   });
   return out.sort((a,b)=>a.date<b.date?-1:1);
 }
-// expected spend from one jar over the next N months, from recurring bills + bills marked 待繳
+// expected money in/out of one jar over the next N months, from recurring bills + bills marked 待繳
 function forecast(jid,months){
   const end=addMonths(TODAY,months), items=[];
   upcoming().filter(u=>u.src===jid).forEach(u=>{
     const sg=isInSub(u.sub)?1:-1;
     if(u.kind==='due'){items.push({key:'d'+u.exp.id,label:withAsset(title(u.exp),u.asset),n:1,each:sg*u.amount,total:sg*u.amount,note:'已記待繳'});return}
-    const step=CYC[u.bill.cycle][1];let d=u.date,n=0;while(d<=end){n++;d=addMonths(d,step)}
-    if(n) items.push({key:u.bill.id,label:withAsset(subName(u.sub),u.asset),n,each:sg*u.avg,total:sg*u.avg*n,note:CYC[u.bill.cycle][0]});
+    const occ=occurrences(u.bill,end);
+    if(occ.length){const tot=sum(occ);items.push({key:u.bill.id,label:withAsset(subName(u.sub),u.asset),n:occ.length,each:sg*tot/occ.length,total:sg*tot,note:CYC[u.bill.cycle][0]})}
   });
   return items.sort((a,b)=>Math.abs(b.total)-Math.abs(a.total));
+}
+
+/* ---------- annual budget and savings plan ----------
+   budget year = the ledger's financial year. For each recurring bill in the budget:
+     actual   = payments already recorded this year (matched by asset + category, so each record counts once)
+     forecast = expected payments from the next due date to the end of the year (see forecastFor)
+   The yearly budget is (actual + forecast) × (1 + buffer), unless a budget was locked for the year. */
+function budgetModel(){
+  const B=S.budget||{},fy=fyOf(TODAY),[fs,fe]=fyRange(fy),buf=(+B.buffer||0)/100;
+  const items=S.bills.filter(b=>b.on&&b.inBudget!==false&&!isInSub(b.sub)&&CYC[b.cycle][1]).map(b=>{
+    const actual=sum(billHist(b).filter(e=>e.date>=fs&&e.date<=fe));
+    const occ=occurrences(b,fe).filter(o=>o.date>=fs);
+    const remaining=sum(occ);
+    return {b,actual,occ,remaining,total:actual+remaining,f:forecastFor(b,occ[0]?.date||nextDue(b)?.date||TODAY)};
+  });
+  // other everyday spending: a manual monthly amount compared with spending that is not a recurring bill
+  const extraM=+B.extra||0,billKeys=new Set(S.bills.map(b=>b.asset+'|'+b.sub));
+  const otherActual=extraM?sum(paid().filter(e=>!isIn(e)&&notBuy(e)&&e.date>=fs&&e.date<=fe&&!billKeys.has(e.asset+'|'+e.sub))):0;
+  const monthsLeft=Math.max(0,diff(TODAY,fe)/30.44);
+  const other=extraM?{actual:otherActual,remaining:extraM*monthsLeft,total:otherActual+extraM*monthsLeft}:null;
+  const actual=sum(items.map(i=>({amount:i.actual})))+(other?.actual||0);
+  const remaining=sum(items.map(i=>({amount:i.remaining})))+(other?.remaining||0);
+  const projected=actual+remaining, plan=B.plans?.[fy];
+  const budget=plan?plan.total:projected*(1+buf);
+  return {fy,fs,fe,buf,items,other,actual,remaining,projected,budget,locked:!!plan,plan,monthly:budget/12,variance:budget-projected};
+}
+// how much to put into the bill account each period so it never runs dry before a bill is due
+const SAVE_EVERY={week:['每週',7],biweek:['每兩週',14],month:['每月',0],days:['自訂天數',0]};
+function contributionDates(end){
+  const B=S.budget||{},out=[];let d=TODAY;
+  for(let i=0;d<=end&&i<1000;i++){out.push(d);d=B.every==='month'?addMonths(TODAY,i+1):addDays(TODAY,(i+1)*(B.every==='week'?7:B.every==='biweek'?14:Math.max(1,+B.days||30)))}
+  return out;
+}
+function savingsPlan(model){
+  const B=S.budget||{},jid=B.jar&&jarOf(B.jar)?B.jar:null,bal=jid?jarBalance(jid):0,end=addDays(addMonths(TODAY,12),-1);
+  const events=S.bills.filter(b=>b.on&&b.inBudget!==false&&!isInSub(b.sub)&&CYC[b.cycle][1])
+    .flatMap(b=>occurrences(b,end).map(o=>({...o,amount:o.amount*(1+model.buf),b}))).sort((a,b)=>a.date<b.date?-1:1);
+  const dates=contributionDates(end),K=dates.length,need=sum(events);
+  const avg=K?Math.max(0,(need-bal)/K):0;
+  // the smallest equal amount that keeps the balance at or above zero on every due date
+  let req=0,cum=0,tight=null;
+  // tight: the due date that sets the amount, how much is due by then, and the biggest bill among those
+  events.forEach((ev,i)=>{cum+=ev.amount;const k=dates.filter(d=>d<=ev.date).length||1,c=(cum-bal)/k;
+    if(c>req){req=c;const upto=events.slice(0,i+1);tight={date:ev.date,cum,k,big:upto.reduce((a,x)=>x.amount>a.amount?x:a,upto[0])}}});
+  const dp=cur()[2],per=Math.ceil(Math.max(avg,req)*10**dp)/10**dp;
+  // month-by-month projection with that amount
+  const months=[];let run=bal;
+  for(let m=0;m<12;m++){const ms=addMonths(TODAY.slice(0,7)+'-01',m),me=addDays(addMonths(ms,1),-1);
+    const inn=dates.filter(d=>d>=ms&&d<=me&&d>=TODAY).length*per,out=sum(events.filter(e=>e.date>=ms&&e.date<=me));
+    run+=inn-out;months.push({m:ms.slice(0,7),inn,out,bal:run,bills:events.filter(e=>e.date>=ms&&e.date<=me)})}
+  const [fs,fe]=fyRange(fyOf(TODAY));
+  const saved=jid?sum(S.moves.filter(m=>m.jar===jid&&m.kind==='in'&&m.date>=fs&&m.date<=fe)):0;
+  const low=months.reduce((a,x)=>x.bal<a.bal?x:a,months[0]||{bal:bal});
+  return {jid,bal,events,need,K,avg,req,per,tight:req>avg+0.005?tight:null,months,saved,toSave:Math.max(0,need-bal),low};
 }
 
 /* ---------- ui helpers ---------- */
@@ -288,11 +399,11 @@ function expRow(e,pick){
 }
 function jarCard(j,mini){
   const bal=jarBalance(j.id);
-  const note=bal<0?`你先墊了 <b class="num">${money(-bal)}</b>`:bal<j.alert?`快見底了，低於 <span class="num">${money0(j.alert)}</span>`:`還可以扣 <span class="num">${money(bal)}</span>`;
+  const note=bal<0?`餘額不足 <b class="num">${money(-bal)}</b>`:bal<j.alert?`快見底了，低於 <span class="num">${money0(j.alert)}</span>`:`還可以扣 <span class="num">${money(bal)}</span>`;
   return `<section class="card jar ${mini?'mini':''} ${bal<0?'neg':''}">
     <div class="row between"><span class="label">${ICON.jar.replace('<svg','<svg style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"')}${esc(j.name)}・存錢罐</span><button class="btn sm ghost" data-act="openjar" data-id="${j.id}">明細 ›</button></div>
     <div class="bal num">${money(bal)}</div><div class="note">${note}</div>
-    <div class="acts"><button class="btn primary sm" data-act="request" data-eo data-id="${j.id}">產生請款單</button><button class="btn sm" data-act="deposit" data-eo data-id="${j.id}">存入</button></div>
+    <div class="acts"><button class="btn primary sm" data-act="request" data-eo data-id="${j.id}">匯出明細</button><button class="btn sm" data-act="deposit" data-eo data-id="${j.id}">存入</button></div>
   </section>`;
 }
 
@@ -460,6 +571,67 @@ function drawChart(el,months,series){
   svg.addEventListener('pointerleave',()=>{tip.hidden=true;xh.setAttribute('visibility','hidden')});
 }
 
+/* ---------- budget page ---------- */
+function renderBudget(){
+  const m=budgetModel(),sp=savingsPlan(m),B=S.budget||{},ed=canEdit(),fyName=fyLabel(m.fy);
+  const pct=m.budget>0?Math.min(100,m.actual/m.budget*100):0;
+  const tile=(label,v,note,cls='')=>`<div class="card tile"><div class="label">${label}</div><div class="v num ${cls}">${v}</div>${note?`<div class="tiny faint">${note}</div>`:''}</div>`;
+  const every=SAVE_EVERY[B.every||'month'][0].replace('自訂天數',`每 ${+B.days||30} 天`);
+  const billRows=m.items.map(i=>`<button class="item" data-act="${ed?'editbill':''}" data-id="${i.b.id}">${catIcon(catOf(i.b.sub)?.id,false,i.b.sub)}
+      <span class="grow"><span class="ell" style="display:block;font-weight:600">${esc(withAsset(subName(i.b.sub),i.b.asset))}</span>
+        <span class="tiny muted">${CYC[i.b.cycle][0]}・${esc(i.f.label)}</span>
+        <span class="meta">${i.actual?`<span class="pill acc">實際 ${money0(i.actual)}</span>`:''}${i.occ.length?`<span class="pill">預估 ${i.occ.length} 次 ${money0(i.remaining)}</span>`:''}${i.f.method==='none'?'<span class="pill neg">需要設定</span>':''}</span></span>
+      <span class="amt num">${money0(i.total)}</span></button>`).join('');
+  main.innerHTML=topbar('預算',`${fyName}・${slash(m.fs)} – ${slash(m.fe)}`,gearBtn())+`
+  <div class="homegrid"><div class="stack">
+    <section class="card pad stack" style="gap:10px">
+      <div class="row between"><span class="label">${fyName}支出預算</span><span class="pill ${m.locked?'acc':''}">${m.locked?'已鎖定':'自動計算'}</span></div>
+      <div class="num" style="font-size:32px;font-weight:700">${money(m.budget)}</div>
+      <div class="bar" role="img" aria-label="已用 ${pct.toFixed(0)}%"><i style="width:${pct}%"></i></div>
+      <div class="tiny muted">已付 ${pct.toFixed(0)}%・${m.locked?`鎖定於 ${slash(new Date(m.plan.at).toISOString().slice(0,10))}`:`預估全年 × (1 + 緩衝 ${(m.buf*100).toFixed(0)}%)`}</div>
+      ${ed?`<div class="inline">${m.locked?'<button class="btn sm" data-act="bplan">用目前的預估更新預算</button><button class="btn sm ghost" data-act="bunlock">取消鎖定</button>':'<button class="btn sm" data-act="bplan">鎖定為本年度預算</button>'}</div>`:''}
+    </section>
+    <div class="tiles">
+      ${tile('每月平均',money(m.monthly),'預算 ÷ 12')}
+      ${tile('實際已付',money(m.actual),'本年度已記錄的帳單')}
+      ${tile('預估剩餘',money(m.remaining),'從下次到期日到年底')}
+      ${tile('預算差異',money(m.variance,true),m.variance>=0?'預估會在預算內':'預估會超出預算',m.variance>=0?'pos':'negc')}
+    </div>
+    <div class="hint">預估全年 = 實際已付 ${money(m.actual)} ＋ 預估剩餘 ${money(m.remaining)} = <b>${money(m.projected)}</b>。點一筆帳單可以看計算方式、手動調整金額或設定初始預算。</div>
+    <section class="card"><div class="row between pad" style="padding-bottom:6px"><h2 class="h2">帳單預估</h2>${ed?'<button class="btn sm ghost" data-act="newbill">＋ 固定帳單</button>':''}</div>
+      <div class="list">${billRows||'<div class="empty">還沒有固定帳單。到「設定 → 提醒」新增，或在這裡按「＋ 固定帳單」。</div>'}
+      ${m.other?`<div class="item">${catIcon('misc')}<span class="grow"><b>其他支出</b><span class="tiny muted" style="display:block">每月 ${money0(+B.extra)}・不屬於固定帳單的支出</span><span class="meta"><span class="pill acc">實際 ${money0(m.other.actual)}</span><span class="pill">預估 ${money0(m.other.remaining)}</span></span></span><span class="amt num">${money0(m.other.total)}</span></div>`:''}</div></section>
+  </div><div class="stack">
+    <section class="card pad stack" style="gap:10px">
+      <div class="row between"><h2 class="h2">存錢計畫</h2><span class="tiny muted">未來 12 個月</span></div>
+      ${ed?`<div class="filters" style="flex-wrap:wrap">
+        <select data-edit="bjar" data-title="帳單帳戶" class="sel${sp.jid?' on':''}"><option value="">不指定帳戶</option>${S.jars.map(j=>`<option value="${j.id}"${B.jar===j.id?' selected':''}>帳單帳戶：${esc(j.name)}</option>`).join('')}</select>
+        <select data-edit="bevery" data-title="多久存一次" class="sel on">${Object.entries(SAVE_EVERY).map(([k,[l]])=>`<option value="${k}"${(B.every||'month')===k?' selected':''}>${l}</option>`).join('')}</select>
+        ${B.every==='days'?`<span class="inline small">每 <input type="number" class="search num" data-edit="bdays" value="${+B.days||30}" style="width:70px;padding:6px 8px" aria-label="天數"> 天</span>`:''}</div>`:''}
+      <div><div class="label">建議${every}存入</div><div class="num" style="font-size:30px;font-weight:700">${money(sp.per)}</div>
+        <div class="tiny muted">共 ${sp.K} 期・平均每期 ${money(sp.avg)}</div></div>
+      ${sp.tight?`<div class="proto">比平均多存，是因為到 <b>${slash(sp.tight.date)}</b> 前要付 ${money0(sp.tight.cum)} 的帳單（最大的一筆是 ${slash(sp.tight.big.date)} ${esc(withAsset(subName(sp.tight.big.b.sub),sp.tight.big.b.asset))} 約 ${money0(sp.tight.big.amount)}），那之前只能存 ${sp.tight.k} 期。只存平均值的話，到時帳戶會不夠付。</div>`:''}
+      <div class="fgroup">
+        <div class="f"><label>未來 12 個月帳單</label><span class="num" style="margin-left:auto">${money(sp.need)}</span></div>
+        <div class="f"><label>帳戶目前餘額</label><span class="num" style="margin-left:auto">${sp.jid?money(sp.bal):'—'}</span></div>
+        <div class="f"><label>還需要存</label><span class="num" style="margin-left:auto;font-weight:700">${money(sp.toSave)}</span></div>
+        <div class="f"><label>本年度已存入</label><span class="num" style="margin-left:auto">${sp.jid?money(sp.saved):'—'}</span></div>
+        <div class="f"><label>最低餘額</label><span class="num ${sp.low&&sp.low.bal<0?'negc':''}" style="margin-left:auto">${sp.low?`${money(sp.low.bal)}（${+sp.low.m.slice(5)} 月）`:'—'}</span></div></div>
+      ${sp.jid&&ed?`<button class="btn primary" data-act="budgetin" data-id="${sp.jid}">記一筆存入 ${money(sp.per)}</button>`:''}
+      ${sp.jid?'':'<div class="hint">選一個存錢罐當「帳單帳戶」，就會算出目前餘額、已存入，以及每個月底的預估餘額。</div>'}
+      <div class="scrollx"><table class="tbl num"><thead><tr><th>月份</th><th>帳單</th><th>存入</th><th>月底餘額</th></tr></thead><tbody>
+        ${sp.months.map(x=>`<tr><td>${x.m.replace('-','/')}</td><td title="${esc(x.bills.map(e=>withAsset(subName(e.b.sub),e.b.asset)).join('、'))}">${x.out?money(-x.out):'<span class="faint">—</span>'}</td><td>${x.inn?money(x.inn,true):'<span class="faint">—</span>'}</td><td class="${x.bal<0?'negc':''}">${money(x.bal)}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="hint">建議金額是「讓每一筆帳單到期時，帳戶都夠付」的最小固定金額，和「平均每期」取比較大的那個。帳單金額已加上 ${(m.buf*100).toFixed(0)}% 緩衝。</div>
+    </section>
+    ${ed?`<section class="card pad stack" style="gap:8px"><b>預算設定</b>
+      <div class="fgroup">
+        <div class="f"><label for="bbuf">緩衝比例</label><span class="inline" style="margin-left:auto"><input id="bbuf" type="number" inputmode="decimal" data-edit="bbuf" value="${B.buffer??10}" style="width:70px;text-align:right"> %</span></div>
+        <div class="f"><label for="bext">其他支出／月</label><span class="inline" style="margin-left:auto">${cur()[1]}<input id="bext" type="number" inputmode="decimal" data-edit="bextra" value="${+B.extra||0}" style="width:100px;text-align:right"></span></div></div>
+      <div class="hint">緩衝：帳單可能比預估貴一點，預算和存錢金額都會多留這個比例。其他支出：吃飯、購物等不是固定帳單的花費，每月抓一個數字，0 代表不列入。</div></section>`:''}
+  </div></div>`;
+}
+
 /* ---------- jars ---------- */
 function renderJar(){
   if(!jarOf(curJar)) curJar=S.jars[0]?.id||null;
@@ -474,8 +646,8 @@ function renderJar(){
       <div class="row between"><span class="label">${esc(j.name)}</span><div class="inline"><button class="btn sm ${j.pin?'primary':'ghost'}" data-act="pinjar" data-eo data-id="${j.id}">${j.pin?'已釘選到首頁':'釘選到首頁'}</button><button class="btn sm ghost" data-act="editjar" data-eo data-id="${j.id}">編輯</button></div></div>
       ${j.desc?`<div class="small muted">${esc(j.desc)}</div>`:''}
       <div class="bal num">${money(bal)}</div>
-      <div class="note">${bal<0?`負數代表你先墊了 <b class="num">${money(-bal)}</b>`:`還可以扣 ${money(bal)}`}・低於 <span class="num">${money0(j.alert)}</span> 會提醒你</div>
-      <div class="acts"><button class="btn primary sm" data-act="request" data-eo data-id="${j.id}">產生請款單</button><button class="btn sm" data-act="deposit" data-eo data-id="${j.id}">存入</button><button class="btn sm ghost" data-act="adjust" data-eo data-id="${j.id}">其他調整</button></div>
+      <div class="note">${bal<0?`負數代表餘額不足 <b class="num">${money(-bal)}</b>`:`還可以扣 ${money(bal)}`}・低於 <span class="num">${money0(j.alert)}</span> 會提醒你</div>
+      <div class="acts"><button class="btn primary sm" data-act="request" data-eo data-id="${j.id}">匯出明細</button><button class="btn sm" data-act="deposit" data-eo data-id="${j.id}">存入</button><button class="btn sm ghost" data-act="adjust" data-eo data-id="${j.id}">其他調整</button></div>
     </section>
     <div class="hint">記開銷時「從哪裡扣」選這個存錢罐，就會自動從這裡扣掉，不用再記第二次。</div>
     <div class="card list">${l.slice().reverse().map(r=>`<button class="item" data-act="${r.exp?'edit':'editmove'}" data-id="${r.exp?r.exp.id:r.mv.id}">
@@ -488,12 +660,12 @@ function requestSheet(jid){
   let lastIn=-1;l.forEach((r,i)=>{if(r.amount>0)lastIn=i});
   const since=l.slice(Math.max(0,lastIn));
   let months=j.months||12, off=new Set();
-  openSheet('請款單',`<div class="form">
+  openSheet('匯出明細',`<div class="form">
     <div class="fgroup">
       <div class="f"><label>預估未來</label><div class="seg" style="margin-left:auto" id="rm">${[3,6,12].map(m=>`<button type="button" data-m="${m}" aria-pressed="${m===months}">${m} 個月</button>`).join('')}</div></div>
       <div id="estlist"></div>
     </div>
-    <div class="hint">依照每筆固定帳單過去 3 次的平均金額和週期來估算，只算從「${esc(j.name)}」扣的帳單。不想算進去的，點一下取消勾選。</div>
+    <div class="hint">依照每筆固定帳單的預估金額（和「預算」頁同一套算法）和週期來估算，只算從「${esc(j.name)}」扣的帳單。不想算進去的，點一下取消勾選。</div>
     <div class="card pad stack" style="gap:6px" id="calc"></div>
     <pre class="req" id="reqtxt"></pre>
     <button class="btn primary" id="copy">複製文字</button></div>`,root=>{
@@ -504,10 +676,10 @@ function requestSheet(jid){
       $('#calc').innerHTML=`<div class="row between small"><span class="muted">罐子目前餘額</span><span class="num">${money(bal)}</span></div>
         <div class="row between small"><span class="muted">未來 ${months} 個月預估</span><span class="num">${money(flow)}</span></div>
         <div class="row between small"><span class="muted">兩個加起來</span><span class="num">${money(bal+flow)}</span></div>
-        <div class="row between" style="border-top:1px solid var(--line);padding-top:8px"><b>這次請款</b><b class="num" style="font-size:20px">${money(need)}</b></div>`;
-      $('#reqtxt').textContent=`${j.name}存錢罐（${slash(since[0]?.date||TODAY)} 起）\n\n`+since.map(r=>`${slash(r.date).slice(5)}  ${r.exp?withAsset(fullName(r.exp),r.exp.asset):r.label}  ${money(r.amount,true)}`).join('\n')+
-        `\n\n目前餘額：${money(bal)}${bal<0?'（我先墊付）':''}\n\n未來 ${months} 個月預估：\n`+items.filter(i=>!off.has(i.key)).map(i=>`・${i.label} ${i.n} 次 約 ${money(i.total)}`).join('\n')+
-        `\n預估合計：${money(flow)}\n\n這次請款：${money(need)}`;
+        <div class="row between" style="border-top:1px solid var(--line);padding-top:8px"><b>建議存入</b><b class="num" style="font-size:20px">${money(need)}</b></div>`;
+      $('#reqtxt').textContent=`${j.name}・資金明細（${slash(since[0]?.date||TODAY)} 起）\n\n`+since.map(r=>`${slash(r.date).slice(5)}  ${r.exp?withAsset(fullName(r.exp),r.exp.asset):r.label}  ${money(r.amount,true)}`).join('\n')+
+        `\n\n目前餘額：${money(bal)}${bal<0?'（餘額不足）':''}\n\n未來 ${months} 個月預估：\n`+items.filter(i=>!off.has(i.key)).map(i=>`・${i.label} ${i.n} 次 約 ${money(i.total)}`).join('\n')+
+        `\n預估合計：${money(flow)}\n\n建議存入：${money(need)}`;
       root.querySelectorAll('.est').forEach(b=>b.onclick=()=>{off.has(b.dataset.k)?off.delete(b.dataset.k):off.add(b.dataset.k);draw()});
     };
     root.querySelectorAll('#rm [data-m]').forEach(b=>b.onclick=()=>{months=+b.dataset.m;j.months=months;saveCfg();root.querySelectorAll('#rm [data-m]').forEach(x=>x.setAttribute('aria-pressed',x===b));draw()});
@@ -580,7 +752,7 @@ function expenseForm(e,preset){
       <div class="f"><label for="xm">付款方式</label><select id="xm">${[...new Set([...S.methods,e.method].filter(Boolean))].map(m=>`<option${m===e.method?' selected':''}>${esc(m)}</option>`).join('')}</select></div>
     </div>
     <div class="fgroup">
-      <div class="f col"><label for="xno">備註</label><textarea id="xno" placeholder="例如：帳單期間、幫誰代墊">${esc(e.note)}</textarea></div>
+      <div class="f col"><label for="xno">備註</label><textarea id="xno" placeholder="例如：帳單期間、幫誰代付">${esc(e.note)}</textarea></div>
       ${S.fields.map((f,i)=>`<div class="f"><label for="xf${i}">${esc(f)}</label><input id="xf${i}" type="text" value="${esc(e.extra[f]||'')}"></div>`).join('')}
       <div class="f"><label>收據</label><span class="inline" style="margin-left:auto" id="xrwrap">${e.receipt?`<button type="button" class="btn sm" id="xrview">查看</button><button type="button" class="btn sm ghost" id="xrdel">移除</button>`:''}<label class="btn sm ghost"><input id="xr" type="file" accept="image/*,application/pdf" hidden><span id="xrlabel">${e.receipt?'換一張':'加照片或 PDF'}</span></label></span></div>
     </div>
@@ -723,6 +895,8 @@ function setupEdit(el){
   if(k==='jaralert')jarOf(id).alert=+v||0;
   if(k==='currency'){S.currency=v;renderSetup()}
   if(k==='fy'){S.fyStart=+v;renderSetup()}
+  if(['bbuf','bextra','bjar','bevery','bdays'].includes(k)){S.budget={...defaultConfig().budget,...(S.budget||{})};
+    const f={bbuf:'buffer',bextra:'extra',bjar:'jar',bevery:'every',bdays:'days'}[k];S.budget[f]=['jar','every'].includes(f)?v:Math.max(0,+v||0);rerender()}
   if(k==='kind'){S.assets.find(a=>a.id===id).kind=v;renderSetup()}
   saveCfg();
 }
@@ -764,7 +938,7 @@ document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(document
 
 /* ---------- boot, routing & events ---------- */
 
-const VIEWS={home:renderHome,list:renderList,chart:renderChart,jar:renderJar,setup:renderSetup};
+const VIEWS={home:renderHome,list:renderList,budget:renderBudget,chart:renderChart,jar:renderJar,setup:renderSetup};
 function go(t){tab=VIEWS[t]?t:'home';
   document.querySelectorAll('.tab[data-tab]').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===tab?'page':'false'));
   VIEWS[tab]();window.scrollTo(0,0);try{if(location.hash.slice(1)!==tab)history.replaceState(null,'','#'+tab)}catch(e){}}
@@ -811,6 +985,9 @@ document.addEventListener('click',ev=>{
     clearall:()=>clearAllForm(),
     font:()=>{PREFS.font=id;applyFont(id);B.setPrefs(USER.uid,{font:id});renderSetup()},
     ledgers:()=>ledgerSheet(),
+    bplan:()=>{const m=budgetModel();S.budget={...defaultConfig().budget,...(S.budget||{})};S.budget.plans={...(S.budget.plans||{}),[m.fy]:{total:Math.round(m.projected*(1+m.buf)*100)/100,at:Date.now(),items:Object.fromEntries(m.items.map(i=>[i.b.id,Math.round(i.total*100)/100]))}};saveCfg();rerender();toast('已鎖定本年度預算')},
+    bunlock:()=>{const fy=fyOf(TODAY);withUndo('已取消鎖定',()=>{const p={...(S.budget.plans||{})};delete p[fy];S.budget={...S.budget,plans:p}})},
+    budgetin:()=>{const sp=savingsPlan(budgetModel());moveForm(null,'in',id);setTimeout(()=>{const a=document.getElementById('ja'),n=document.getElementById('jn');if(a)a.value=sp.per.toFixed(cur()[2]);if(n)n.value='帳單存款'},60)},
     addpw:()=>passwordForm(),
   })[act]?.();
 });
@@ -851,6 +1028,15 @@ async function showReceipt(id){
     }catch(e){box.querySelector('.spin').outerHTML=`<div class="empty">讀取失敗：${esc(e.message)}</div>`}
   });
 }
+// how a bill's next amount is worked out, with the numbers used
+function billForecastBlock(b,isNew){
+  if(isNew)return '';
+  const n=nextDue(b),f=forecastFor(b,n?.date||TODAY),h=billHist(b);
+  return `<div class="card pad stack" style="gap:6px"><div class="row between"><b>下次預估</b><b class="num">${money(f.amount)}</b></div>
+    <div class="small muted">${n?`下次到期 ${slash(n.date)}・`:''}${esc(f.label)}</div>
+    ${f.parts.length?`<div class="small">${f.parts.map(esc).join(' × ').replace(' × 最近',' 最近')}</div>`:''}
+    <div class="tiny faint">共有 ${h.length} 筆實際帳單${h.length?`，最近一筆 ${slash(h.at(-1).date)} ${money(h.at(-1).amount)}`:''}</div></div>`;
+}
 function billForm(b){
   const isNew=!b;b=b||{id:uid('b'),asset:S.assets.find(a=>!a.archived)?.id||'',sub:S.cats.find(c=>c.subs.length)?.subs[0]?.id||'',cycle:'monthly',mode:'pre',lead:5,on:true};
   openSheet(isNew?'新增固定帳單':'編輯固定帳單',`<div class="form"><div class="fgroup">
@@ -860,9 +1046,18 @@ function billForm(b){
     <div class="f"><label for="bm">付費方式</label><select id="bm"><option value="pre"${b.mode==='pre'?' selected':''}>預付（先付錢再使用）</option><option value="post"${b.mode==='post'?' selected':''}>後付（用完才收帳單）</option></select></div>
     <div class="f"><label for="bl">提前幾天提醒</label><input id="bl" type="number" inputmode="numeric" value="${b.lead}"></div></div>
     <div class="hint">下次繳費日會用這個資產、這個類別最近一次付款的日期加上週期來推算。</div>
+    ${billForecastBlock(b,isNew)}
+    <div class="fgroup">
+      <div class="f"><label for="bman">預估金額</label><span class="inline" style="margin-left:auto">${cur()[1]}<input id="bman" type="number" inputmode="decimal" value="${+b.manual||''}" placeholder="自動" style="width:110px;text-align:right"></span></div>
+      <div class="f"><label for="binit">初始預算</label><span class="inline" style="margin-left:auto">${cur()[1]}<input id="binit" type="number" inputmode="decimal" value="${+b.init||''}" placeholder="沒有資料時用" style="width:130px;text-align:right"></span></div>
+      <div class="f"><label for="bfirst">第一次繳費日</label><input id="bfirst" type="date" value="${b.first||''}"></div>
+      <div class="f"><label>列入預算</label><div class="seg" style="margin-left:auto"><button type="button" data-inb="1" aria-pressed="${b.inBudget!==false}">列入</button><button type="button" data-inb="0" aria-pressed="${b.inBudget===false}">不列入</button></div></div></div>
+    <div class="hint">「預估金額」留空就自動計算；填了就一律用你填的。「初始預算」和「第一次繳費日」是給還沒有任何實際帳單的時候用。</div>
     ${isNew?'':'<div id="bdelwrap"><button class="btn danger" style="width:100%" id="bdel">刪除這個固定帳單</button></div>'}</div>`,root=>{
     const $=q=>root.querySelector(q);
-    $('#bsave').onclick=()=>{const v={asset:$('#ba').value,sub:$('#bs').value,cycle:$('#bc').value,mode:$('#bm').value,lead:+$('#bl').value||0};
+    let inb=b.inBudget!==false;root.querySelectorAll('[data-inb]').forEach(x=>x.onclick=()=>{inb=x.dataset.inb==='1';root.querySelectorAll('[data-inb]').forEach(y=>y.setAttribute('aria-pressed',y===x))});
+    $('#bsave').onclick=()=>{const v={asset:$('#ba').value,sub:$('#bs').value,cycle:$('#bc').value,mode:$('#bm').value,lead:+$('#bl').value||0,
+      manual:+$('#bman').value>0?+$('#bman').value:'',init:+$('#binit').value>0?+$('#binit').value:'',first:$('#bfirst').value||'',inBudget:inb};
       if(S.bills.some(x=>x!==b&&x.asset===v.asset&&x.sub===v.sub)){toast('這個資產的這個類別已經有固定帳單了');return}
       Object.assign(b,v);if(isNew)S.bills.push(b);saveCfg();closeSheet();renderSetup();toast(isNew?'已新增':'已更新')};
     if($('#bdel'))$('#bdel').onclick=()=>confirmIn($('#bdelwrap'),()=>{closeSheet();withUndo(`已刪除「${withAsset(subName(b.sub),b.asset)}」的提醒`,()=>{S.bills=S.bills.filter(x=>x!==b)})});
@@ -951,7 +1146,18 @@ function itemForm(key,idx){
     if($('#idel'))$('#idel').onclick=()=>{closeSheet();withUndo(`已刪除${what}「${old}」`,()=>{S[key]=S[key].filter((x,i)=>i!==idx)})};
   },{label:isNew?'新增':'儲存',id:'isave'});
 }
-const xctx=()=>({fyStart:fyStart(),S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,isIn,sv,cur:cur(),buyName:buyName()});
+// budget figures for the Excel 預算 sheet (plain values)
+function budgetExport(){
+  if(!S.bills.length)return null;
+  const m=budgetModel(),sp=savingsPlan(m),B=S.budget||{};
+  return {yearName:fyLabel(m.fy),range:`${slash(m.fs)} – ${slash(m.fe)}`,budget:r2x(m.budget),projected:r2x(m.projected),actual:r2x(m.actual),remaining:r2x(m.remaining),variance:r2x(m.variance),monthly:r2x(m.monthly),buffer:+(B.buffer??10),locked:m.locked,
+    items:[...m.items.map(i=>({name:subName(i.b.sub),asset:i.b.asset?assetOf(i.b.asset).name:'',cycle:CYC[i.b.cycle][0],method:['avg','stat'].includes(i.f.method)?i.f.parts.join(' × '):i.f.label,actual:r2x(i.actual),n:i.occ.length,remaining:r2x(i.remaining)})),
+      ...(m.other?[{name:'其他支出',asset:'',cycle:'每月',method:`手動設定每月 ${+B.extra}`,actual:r2x(m.other.actual),n:null,remaining:r2x(m.other.remaining)}]:[])],
+    savings:{jar:sp.jid?jarOf(sp.jid).name:'',every:SAVE_EVERY[B.every||'month'][0].replace('自訂天數',`每 ${+B.days||30} 天`),per:sp.per,avg:r2x(sp.avg),need:r2x(sp.need),bal:r2x(sp.bal),toSave:r2x(sp.toSave),
+      months:sp.months.map(x=>({m:x.m.replace('-','/'),out:r2x(x.out),inn:r2x(x.inn),bal:r2x(x.bal)}))}};
+}
+const r2x=n=>Math.round((+n||0)*100)/100;
+const xctx=()=>({fyStart:fyStart(),ledgerName:LEDGER?.name||'',currencyCode:S.currency,budget:budgetExport(),S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,isIn,sv,cur:cur(),buyName:buyName()});
 function iconPicker(current,onPick){
   const tile=(k,l)=>`<button class="card pad stack" data-kind="${k}" style="align-items:center;gap:6px;${current===k?'border-color:var(--accent);color:var(--accent)':''}"><span class="dot">${iconHTML(k)}</span><span class="small ell" style="max-width:100%">${esc(l)}</span></button>`;
   const grid=`style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr))"`;
@@ -1260,6 +1466,8 @@ function tryMigrate(){
 function scheduleRender(){clearTimeout(renderT);renderT=setTimeout(()=>{if(!booted)return;const a=document.activeElement;
   if(a&&main.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)&&a.id!=='q'){a.addEventListener('blur',scheduleRender,{once:true});return}rerender()},60)}
 function startApp(){gate.hidden=true;shell.hidden=false;if(!booted){booted=true;go(location.hash.slice(1)||'home')}else rerender()}
+// automated tests read the calculations directly
+if(window.__BILEDGER_TEST__)window.__bl={forecastFor,budgetModel,savingsPlan,occurrences,state:()=>S};
 let unsubL=null;
 function openLedger(id,roleHint){
   unsub?.();unsub=null;LID=id;clearTimeout(cfgTimer);cfgDirty=false;

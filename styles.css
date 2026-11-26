@@ -293,3 +293,10 @@ body.readonly .tabbar nav{grid-template-columns:repeat(4,1fr)}
 .f>span.selectable .cic.s{display:inline-grid;vertical-align:middle;margin-right:2px}
 .ok{width:20px;height:20px;color:var(--accent);flex:none}
 #csend{flex:none;white-space:nowrap;align-self:stretch}
+
+/* ---------- budget ---------- */
+.tabbar nav{grid-template-columns:repeat(6,1fr)}
+body.readonly .tabbar nav{grid-template-columns:repeat(5,1fr)}
+.bar{height:8px;border-radius:99px;background:var(--surface2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.negc{color:var(--neg)}
