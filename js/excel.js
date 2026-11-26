@@ -133,22 +133,26 @@ export async function exportWorkbook(X) {
   /* 年度統計：固定開銷 / 一次性開銷 / 購買 */
   const y = wb.addWorksheet('年度統計', { views: [{ showGridLines: false }] });
   titleCell(y.getCell('A1'), '每年收支・依資產（按付款日，只算已付；支出是負數）');
-  const years = [...new Set(ds.map(d => d.slice(0, 4)))].sort().reverse();
+  // years follow the ledger's financial year (fyStart = first month), named by the year they start in
+  const fs = +X.fyStart || 1, fyOf = d => (+d.slice(5, 7) >= fs ? +d.slice(0, 4) : +d.slice(0, 4) - 1);
+  const fyName = fy => fs === 1 ? String(fy) : `${fy}–${String(fy + 1).slice(2)} 財年`;
+  const inFy = (d, fy) => fyOf(d) === fy;
+  const years = [...new Set(ds.map(fyOf))].sort().reverse();
   // expenses without an asset get their own column
   const assets = [...S.assets, ...(S.expenses.some(e => !e.asset) ? [{ id: '', name: '未指定資產' }] : [])];
   let row = 3;
   const block = (label, hint, crit, test) => {
     y.getCell(row, 1).value = label; y.getCell(row, 1).font = { name: FONT, size: 12, bold: true };
     note(y.getCell(row + 1, 1), hint);
-    header(y, row + 2, [['年份', 10], ...assets.map(a => [a.name, 20]), ['合計', 14]]);
+    header(y, row + 2, [['年份', fs === 1 ? 10 : 15], ...assets.map(a => [a.name, 20]), ['合計', 14]]);
     years.forEach((yy, k) => {
       const r = row + 3 + k;
-      const c0 = y.getCell(r, 1); c0.value = yy; cellStyle(c0);
+      const c0 = y.getCell(r, 1); c0.value = fyName(yy); cellStyle(c0);
       let tot = 0;
       assets.forEach((a, i) => {
-        const v = r2(paid.filter(e => e.date.startsWith(yy) && (e.asset || '') === a.id && test(e)).reduce((t, e) => t + X.sv(e), 0)); tot += v;
+        const v = r2(paid.filter(e => inFy(e.date, yy) && (e.asset || '') === a.id && test(e)).reduce((t, e) => t + X.sv(e), 0)); tot += v;
         const c = y.getCell(r, i + 2);
-        c.value = { formula: `SUMIFS(${AMT},${DT},">="&DATE(${yy},1,1),${DT},"<"&DATE(${+yy + 1},1,1),${AS},"${a.id ? q(a.name) : '='}",${ST},"已付"${crit})`, result: v };
+        c.value = { formula: `SUMIFS(${AMT},${DT},">="&DATE(${yy},${fs},1),${DT},"<"&DATE(${yy + 1},${fs},1),${AS},"${a.id ? q(a.name) : '='}",${ST},"已付"${crit})`, result: v };
         cellStyle(c, MONEY);
       });
       const n = assets.length, L = String.fromCharCode(65 + n);
@@ -180,7 +184,7 @@ export async function exportWorkbook(X) {
 
   /* hidden full backup, read back by import */
   const bk = wb.addWorksheet(BACKUP, { state: 'veryHidden' });
-  const cfg = { v: S.v || 3 }; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'font'].forEach(k => cfg[k] = S[k]);
+  const cfg = { v: S.v || 3 }; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'fyStart'].forEach(k => cfg[k] = S[k]);
   const json = JSON.stringify({ app: 'house-car-ledger', v: cfg.v, cfg, expenses: S.expenses, moves: S.moves });
   for (let i = 0, k = 1; i < json.length; i += 30000, k++) bk.getCell(k, 1).value = json.slice(i, i + 30000);
 
@@ -259,4 +263,4 @@ export async function parseWorkbook(file, X) {
   return { cfg, expenses, moves, backup: false };
 }
 
-function pick(S) { const c = {}; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'font'].forEach(k => c[k] = S[k]); return c; }
+function pick(S) { const c = {}; ['folders', 'assets', 'cats', 'methods', 'fields', 'jars', 'bills', 'buffer', 'currency', 'fyStart'].forEach(k => c[k] = S[k]); return c; }

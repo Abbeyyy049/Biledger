@@ -5,10 +5,12 @@ import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, GithubAuthProvider,
   signInWithPopup, signInWithRedirect, getRedirectResult, signOut, linkWithCredential, linkWithPopup,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, EmailAuthProvider,
+  sendEmailVerification, connectAuthEmulator,
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
 import {
   initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, writeBatch,
+  doc, collection, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, writeBatch, updateDoc, addDoc,
+  query, where, FieldPath, deleteField, connectFirestoreEmulator,
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -31,6 +33,11 @@ try {
   });
 } catch (e) {
   db = getFirestore(app);
+}
+// automated tests point the app at local Firebase emulators
+if (window.__BILEDGER_EMULATOR__) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
 }
 
 const PROVIDERS = { google: () => new GoogleAuthProvider(), github: () => new GithubAuthProvider() };
@@ -73,8 +80,11 @@ export async function linkProvider(kind) {
 }
 
 export async function emailLogin(email, pw, create) {
-  try { await (create ? createUserWithEmailAndPassword : signInWithEmailAndPassword)(auth, email.trim(), pw); }
-  catch (e) { throw explain(e); }
+  try {
+    const cred = await (create ? createUserWithEmailAndPassword : signInWithEmailAndPassword)(auth, email.trim(), pw);
+    // new accounts get a confirmation email right away: shared ledgers only open for confirmed addresses
+    if (create) await sendEmailVerification(cred.user).catch(() => {});
+  } catch (e) { throw explain(e); }
 }
 export async function resetPassword(email) {
   try { await sendPasswordResetEmail(auth, email.trim()); } catch (e) { throw explain(e); }
@@ -112,13 +122,84 @@ function explain(e) {
   return err;
 }
 
-/* ---------- database: users/{uid}/meta/config, expenses/{id}, moves/{id}, receipts/{id}, icons/{id} ---------- */
-let uid = null;
-const col = name => collection(db, 'users', uid, name);
-const cfgRef = () => doc(db, 'users', uid, 'meta', 'config');
+export async function sendVerify() { try { await sendEmailVerification(auth.currentUser); } catch (e) { throw explain(e); } }
+// after the person clicks the link in the email: refresh so the new status reaches the database rules
+export async function refreshUser() { await auth.currentUser.reload(); await auth.currentUser.getIdToken(true); return auth.currentUser; }
 
-export function subscribe(userId, { onConfig, onExpenses, onMoves, onIcons, onSync }) {
-  uid = userId;
+/* ---------- ledgers ----------
+   ledgers/{lid}                      name, owner, members {uid: role}, invites {emailKey: role}, names {uid: {name,email}}
+   ledgers/{lid}/meta/config          groups, assets, categories, methods, jars, bills, currency, fiscal year
+   ledgers/{lid}/expenses|moves|receipts|icons|comments/{id}
+   users/{uid}/meta/prefs             this person's font and last opened ledger
+   users/{uid}/...                    data from before ledgers existed (moved into a ledger once) */
+export const ROLES = ['owner', 'editor', 'commenter', 'viewer'];
+export const emailKey = e => String(e || '').trim().toLowerCase().replace(/\./g, ',');
+export const keyEmail = k => String(k).replace(/,/g, '.');
+let lid = null;
+const col = name => collection(db, 'ledgers', lid, name);
+const cfgRef = () => doc(db, 'ledgers', lid, 'meta', 'config');
+const ledgerRef = id => doc(db, 'ledgers', id || lid);
+const me = () => auth.currentUser;
+const myName = () => ({ name: me().displayName || me().email || '', email: me().email || '' });
+
+// ledgers I belong to, and invitations waiting for my (verified) email
+export function watchLedgers(user, cb) {
+  let mine = null, invites = [];
+  const send = () => { if (mine) cb({ mine, invites }); };
+  const offs = [onSnapshot(query(collection(db, 'ledgers'), where(new FieldPath('members', user.uid), 'in', ROLES)),
+    s => { mine = s.docs.map(d => ({ id: d.id, ...d.data() })); send(); }, e => cb(null, e))];
+  if (user.email && user.emailVerified) offs.push(onSnapshot(query(collection(db, 'ledgers'), where(new FieldPath('invites', emailKey(user.email)), 'in', ROLES.slice(1))),
+    s => { invites = s.docs.map(d => ({ id: d.id, ...d.data() })); send(); }, () => {}));
+  return () => offs.forEach(f => f());
+}
+export async function createLedger(name, cfg) {
+  const ref = doc(collection(db, 'ledgers'));
+  await setDoc(ref, { name, owner: me().uid, members: { [me().uid]: 'owner' }, invites: {}, names: { [me().uid]: myName() }, created: Date.now() });
+  await setDoc(doc(db, 'ledgers', ref.id, 'meta', 'config'), cfg);
+  return ref.id;
+}
+export const renameLedger = name => updateDoc(ledgerRef(), { name });
+export const invite = (email, role) => updateDoc(ledgerRef(), new FieldPath('invites', emailKey(email)), role);
+export const cancelInvite = key => updateDoc(ledgerRef(), new FieldPath('invites', key), deleteField());
+export const setRole = (uid, role) => updateDoc(ledgerRef(), new FieldPath('members', uid), role);
+export const removeMember = uid => updateDoc(ledgerRef(), new FieldPath('members', uid), deleteField(), new FieldPath('names', uid), deleteField());
+export async function acceptInvite(id, role) {
+  await updateDoc(ledgerRef(id), new FieldPath('members', me().uid), role, new FieldPath('invites', emailKey(me().email)), deleteField(), new FieldPath('names', me().uid), myName());
+}
+export const leaveLedger = id => updateDoc(ledgerRef(id), new FieldPath('members', me().uid), deleteField(), new FieldPath('names', me().uid), deleteField());
+export async function deleteLedger() { await clearAll(); await deleteDoc(ledgerRef()); }
+
+export async function getPrefs(uid) { const s = await getDoc(doc(db, 'users', uid, 'meta', 'prefs')).catch(() => null); return s?.exists() ? s.data() : {}; }
+export const setPrefs = (uid, p) => setDoc(doc(db, 'users', uid, 'meta', 'prefs'), p, { merge: true }).catch(() => {});
+
+// Data saved before ledgers existed lives under users/{uid}; copy it into a new ledger once.
+export async function legacyData(uid) {
+  const moved = await getDoc(doc(db, 'users', uid, 'meta', 'moved'));
+  if (moved.exists()) return null;
+  const cfg = await getDoc(doc(db, 'users', uid, 'meta', 'config'));
+  return cfg.exists() ? cfg.data() : null;
+}
+export async function moveLegacy(uid, name, cfg) {
+  const id = await createLedger(name, cfg);
+  const prev = lid; lid = id;
+  try {
+    for (const name of ['expenses', 'moves', 'receipts', 'icons']) {
+      const snap = await getDocs(collection(db, 'users', uid, name));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const b = writeBatch(db);
+        snap.docs.slice(i, i + 400).forEach(d => b.set(doc(col(name), d.id), d.data()));
+        await b.commit();
+      }
+    }
+    await setDoc(doc(db, 'users', uid, 'meta', 'moved'), { to: id, at: Date.now() });
+  } finally { lid = prev; }
+  return id;
+}
+
+/* ---------- records of the open ledger ---------- */
+
+export function subscribe(ledgerId, { onLedger, onConfig, onExpenses, onMoves, onIcons, onComments, onSync }) {
+  lid = ledgerId;
   const offs = [
     onSnapshot(cfgRef(), { includeMetadataChanges: true }, s => {
       onSync?.(!s.metadata.hasPendingWrites, s.metadata.fromCache);
@@ -127,6 +208,8 @@ export function subscribe(userId, { onConfig, onExpenses, onMoves, onIcons, onSy
     onSnapshot(col('expenses'), s => onExpenses(s.docs.map(d => d.data()))),
     onSnapshot(col('moves'), s => onMoves(s.docs.map(d => d.data()))),
     onSnapshot(col('icons'), s => onIcons?.(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+    onSnapshot(col('comments'), s => onComments?.(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}),
+    onSnapshot(ledgerRef(), s => onLedger?.(s.exists() ? { id: s.id, ...s.data() } : null), () => onLedger?.(null)),
   ];
   return () => offs.forEach(f => f());
 }
@@ -138,6 +221,8 @@ export const putMove = m => setDoc(doc(col('moves'), m.id), m);
 export const delMove = id => deleteDoc(doc(col('moves'), id));
 export const putIcon = (id, ic) => setDoc(doc(col('icons'), id), ic);
 export const delIcon = id => deleteDoc(doc(col('icons'), id));
+export const addComment = (exp, text) => addDoc(col('comments'), { exp, text, uid: me().uid, ...myName(), at: Date.now() });
+export const delComment = id => deleteDoc(doc(col('comments'), id));
 export const putReceipt = (id, r) => setDoc(doc(col('receipts'), id), r);
 export const delReceipt = id => deleteDoc(doc(col('receipts'), id));
 export async function getReceipt(id) { const s = await getDoc(doc(col('receipts'), id)); return s.exists() ? s.data() : null; }
@@ -145,7 +230,7 @@ export async function getReceipt(id) { const s = await getDoc(doc(col('receipts'
 // Delete every record and the settings of the signed-in person.
 export async function clearAll() {
   const refs = [];
-  for (const name of ['expenses', 'moves', 'receipts', 'icons']) (await getDocs(col(name))).forEach(d => refs.push(d.ref));
+  for (const name of ['expenses', 'moves', 'receipts', 'icons', 'comments']) (await getDocs(col(name))).forEach(d => refs.push(d.ref));
   refs.push(cfgRef());
   for (let i = 0; i < refs.length; i += 400) { const b = writeBatch(db); refs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit(); }
 }
@@ -153,7 +238,7 @@ export async function clearAll() {
 // Replace everything (used by Excel import). Receipts are kept.
 export async function replaceAll(cfg, expenses, moves) {
   const ops = [];
-  for (const name of ['expenses', 'moves']) {
+  for (const name of ['expenses', 'moves', 'comments']) {
     const snap = await getDocs(col(name));
     snap.forEach(d => ops.push(b => b.delete(d.ref)));
   }

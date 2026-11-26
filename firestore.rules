@@ -1,9 +1,70 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each signed-in person can only read and write their own folder.
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    // invitations are keyed by email with '.' written as ',' (a '.' would split the field path)
+    function myEmail() { return request.auth.token.email.lower().replace('[.]', ','); }
+    // An invitation only counts for a confirmed email address, so nobody can claim
+    // one by signing up with someone else's address.
+    function verified() { return request.auth.token.email_verified == true; }
+    function ledger(lid) { return get(/databases/$(database)/documents/ledgers/$(lid)).data; }
+    function roleIn(lid) { return ledger(lid).members.get(me(), ''); }
+    function isMember(lid) { return signedIn() && roleIn(lid) != ''; }
+    function canEdit(lid) { return signedIn() && roleIn(lid) in ['owner', 'editor']; }
+    function canComment(lid) { return signedIn() && roleIn(lid) in ['owner', 'editor', 'commenter']; }
+
+    // Older accounts kept everything here; still readable by the owner so it can be moved into a ledger.
     match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if signedIn() && me() == uid;
+    }
+
+    match /ledgers/{lid} {
+      allow read: if signedIn() && (
+        resource.data.members.get(me(), '') != ''
+        || (verified() && resource.data.invites.get(myEmail(), '') != ''));
+
+      // A new ledger: the creator is its only member and its owner.
+      allow create: if signedIn()
+        && request.resource.data.owner == me()
+        && request.resource.data.members.keys().hasOnly([me()])
+        && request.resource.data.members[me()] == 'owner';
+
+      allow update: if signedIn() && (
+        // the owner may change anything except who owns it
+        (resource.data.members.get(me(), '') == 'owner'
+          && request.resource.data.owner == resource.data.owner
+          && request.resource.data.members.get(resource.data.owner, '') == 'owner')
+        // an invited person accepts: their email leaves the invitations and they join with the invited role
+        || (verified()
+          && resource.data.invites.get(myEmail(), '') != ''
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'invites', 'names'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([me()])
+          && request.resource.data.get('names', {}).diff(resource.data.get('names', {})).affectedKeys().hasOnly([me()])
+          && request.resource.data.members[me()] == resource.data.invites[myEmail()]
+          && request.resource.data.invites.diff(resource.data.invites).affectedKeys().hasOnly([myEmail()])
+          && !(myEmail() in request.resource.data.invites))
+        // a member who is not the owner may leave
+        || (resource.data.members.get(me(), '') in ['editor', 'commenter', 'viewer']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'names'])
+          && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([me()])
+          && request.resource.data.get('names', {}).diff(resource.data.get('names', {})).affectedKeys().hasOnly([me()])
+          && !(me() in request.resource.data.members)));
+
+      allow delete: if signedIn() && resource.data.owner == me();
+
+      // Comments: anyone allowed to comment can add their own; only the writer or an editor removes them.
+      match /comments/{cid} {
+        allow read: if isMember(lid);
+        allow create: if canComment(lid) && request.resource.data.uid == me();
+        allow update: if false;
+        allow delete: if signedIn() && (resource.data.uid == me() || canEdit(lid));
+      }
+      // Everything else in a ledger (settings, records, jars, receipts, icons)
+      match /{col}/{doc} {
+        allow read: if isMember(lid);
+        allow write: if col != 'comments' && canEdit(lid);
+      }
     }
   }
 }

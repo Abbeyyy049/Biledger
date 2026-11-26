@@ -37,8 +37,14 @@ repository 的 Settings → Pages → Source 選「Deploy from a branch」，Bra
 ## 資料結構（Firestore）
 
 ```
-users/{登入者 uid}/meta/config     資料夾、資產、類別、付款方式、存錢罐、固定帳單
-users/{uid}/expenses/{id}          每一筆開銷
-users/{uid}/moves/{id}             存錢罐的存入和調整
-users/{uid}/receipts/{開銷 id}     收據照片（壓縮後存成一份文件）
+ledgers/{帳本 id}                      名稱、擁有者、成員 {uid: 權限}、邀請 {email: 權限}、成員名字
+ledgers/{id}/meta/config               分組、資產、類別、付款方式、存錢罐、固定帳單、貨幣、財年
+ledgers/{id}/expenses|moves/{id}       每一筆收支、存錢罐的存入和調整
+ledgers/{id}/receipts/{開銷 id}        收據照片（壓縮後存成一份文件）
+ledgers/{id}/icons|comments/{id}       自己上傳的圖示、每筆紀錄下的留言
+users/{uid}/meta/prefs                 個人偏好（字體、上次開的帳本）
+users/{uid}/...                        舊版資料，第一次登入新版時會自動搬進「房車帳本」
 ```
+
+權限：擁有者（全部）、可以記帳、可以留言、只能看。邀請要對方用同一個 Email 登入，而且 Email 要先驗證。
+`firestore.rules` 是安全規則，更新後要整段貼到 Firebase 主控台 → Firestore Database → 規則 → 發布。
