@@ -32,7 +32,7 @@ export function localNow(now, tz) {
 export function remindersFor(ledger, today, types = { bills: true, jars: true }) {
   const cfg = ledger.cfg || {}, cats = cfg.cats || [], assets = cfg.assets || [];
   const subInfo = {}; cats.forEach(c => (c.subs || []).forEach(s => { subInfo[s.id] = { name: s.name, income: c.kind === 'in' }; }));
-  const assetName = id => { const a = assets.find(x => x.id === id); return a ? (a.nick && ['house', 'apartment', 'land', 'shop'].includes(a.kind) ? a.nick : a.name) : ''; };
+  const assetName = id => { const a = assets.find(x => x.id === id); return a ? (a.nick && ['house', 'apartment', 'land', 'shop', 'company', 'office', 'factory', 'barn'].includes(a.kind) ? a.nick : a.name) : ''; };
   const label = (sub, asset, name) => [name || subInfo[sub]?.name || '帳單', assetName(asset)].filter(Boolean).join('・');
   const paid = (ledger.expenses || []).filter(e => e.status === 'paid');
   const out = { bills: [], jars: [] };

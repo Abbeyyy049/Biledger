@@ -1,18 +1,8 @@
 import * as B from './backend.js';
 import { exportWorkbook, parseWorkbook, exportMonthReport } from './excel.js';
+import { GROUPS, svg as isvg, hasIcon } from './icons.js';
 
 const ICON = {
-  house:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
-  car:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17v2M19 17v2M3 13l2-5.5A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.9 1.5L21 13v4H3z"/><circle cx="7.5" cy="13.5" r=".6"/><circle cx="16.5" cy="13.5" r=".6"/></svg>',
-  apartment:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/></svg>',
-  moto:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16.5" r="3"/><circle cx="18.5" cy="16.5" r="3"/><path d="M8.5 16.5h6l3-6h-4l-2-3H9M14 7h3l1.5 3.5"/></svg>',
-  shop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6"/></svg>',
-  land:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
-  person:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
-  pet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="9" r="1.8"/><circle cx="12" cy="6.5" r="1.8"/><circle cx="17" cy="9" r="1.8"/><path d="M12 12c-3 0-5.5 3.2-5.5 5.3 0 1.6 1.4 2.2 2.8 1.8 1.1-.3 1.8-.6 2.7-.6s1.6.3 2.7.6c1.4.4 2.8-.2 2.8-1.8C17.5 15.2 15 12 12 12z"/></svg>',
-  device:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg>',
-  invest:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.1 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5v11"/></svg>',
-  other:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -159,27 +149,26 @@ const withAsset=(text,id)=>id?text+'・'+assetShort(id):text;
 const matchAsset=(e,sel)=>sel==='all'||(sel==='none'?!e.asset:sel.startsWith('f:')?!!e.asset&&assetOf(e.asset).folder===sel.slice(2):e.asset===sel);
 const buyName=()=>S.cats.find(c=>c.id==='buy')?.name||'購置';
 // asset icons people can pick from; for places, the nickname is shown in lists instead of the long address
-const KINDS=[['house','房子'],['apartment','公寓／大樓'],['land','土地'],['shop','店面／公司'],['car','汽車'],['moto','機車'],['person','家人'],['pet','寵物'],['device','電子設備'],['invest','投資'],['other','其他']];
-const PLACE=['house','apartment','land','shop'];
-const CAT_ICON={life:'<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7M7 7h4M17 3c-1.7 0-3 2.2-3 5.5S15.3 13 17 13v8"/>',util:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
-  ins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',fee:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/>',
-  buy:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',misc:'<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>',
-  income:'<path d="M12 3v11m0 0-4-4m4 4 4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
-  x:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'};
-const SVG=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-const SUB_ICON={ads:'<path d="M4 10v4h3l6 4V6l-6 4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',salary:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',rentin:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',interest:'<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',refund:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/>',gift:'<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13M12 8c-2-3-5-4-5-1.5S10 8 12 8zm0 0c2-3 5-4 5-1.5S14 8 12 8z"/>',otherin:'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',grocery:'<path d="M4 10h16l-1.5 9h-13zM8 10l3-6M16 10l-3-6M9.5 14v2M14.5 14v2"/>',shopping:'<path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2"/>',medical:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',edu:'<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2zM4 20a2 2 0 0 0 2 1h13"/>',fun:'<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M14 8v1.5M14 11.3v1.4M14 14.5V16"/>',subscr:'<path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/>',rent:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',mortgage:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',bodycorp:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>',council:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',homerepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',garden:'<path d="M12 21v-8M12 13c0-4 3-7 8-7 0 4-3 7-8 7zM12 15c0-3-2.5-5.5-7-5.5 0 3 2.5 5.5 7 5.5z"/>',water:'<path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/>',gas:'<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.5 1 2.5 2.5 3 0-3-1-5.5 0-8z"/>',internet:'<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/>',phone:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',fuel:'<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/>',parking:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M10 16V8h3a2.5 2.5 0 0 1 0 5h-3"/>',toll:'<path d="M7 3 4 21M17 3l3 18M12 4v3M12 10.5v3M12 17v3"/>',transit:'<rect x="5" y="3" width="14" height="15" rx="3"/><path d="M5 11h14M8 21v-3M16 21v-3"/><circle cx="8.5" cy="14.5" r=".7"/><circle cx="15.5" cy="14.5" r=".7"/>',service:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',carrepair:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',rego:'<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h3M13 12h4"/>',caracc:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',license:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.5-1.5 1.7-2.3 3-2.3s2.5.8 3 2.3M15 10h3M15 13h3"/>',homeins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="M9 13.5 12 11l3 2.5V16H9z"/>',carins:'<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',healthins:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',lifeins:'<path d="M3 12a9 9 0 0 1 18 0zM12 12v6a2 2 0 0 0 4 0"/>',stamp:'<path d="M9 13V8a3 3 0 1 1 6 0v5M5 13h14v4H5zM6 21h12"/>',transferfee:'<path d="M4 8h14l-3-3M20 16H6l3 3"/>',legal:'<path d="M12 3v18M8 21h8M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>',firb:'<path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',tax:'<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',deposit:'<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.7 0-2.8.8-2.8 2s1.1 1.7 2.8 2 2.8.8 2.8 2-1.1 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5v11"/>',furniture:'<path d="M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3zM6 18v2M18 18v2"/>'};
-// coloured category badge: the sub-category's own icon when it has one, else the main category's;
-// categories people add get the tag icon
-const SUB_SAME={food:'life',elec:'util',housebuy:'home',carbuy:'car',other:'misc',property:'home'};
-const SUB_ALIAS={farmin:'garden',bankfee:'mortgage',wages:'salary',contract:'legal',supplies:'caracc',equip:'service',renovate:'homerepair',gst:'tax',incometax:'council',landtax:'council',othertax:'tax',adsin:'ads'};
+// asset icons: any icon from js/icons.js; for places, the nickname is shown in lists instead of the long address
+const PLACE=['house','apartment','land','shop','company','office','factory','barn'];
+// default icons for the built-in categories; people can pick their own (cat.icon / sub.icon)
+const CAT_DEF={life:'utensils',home:'house',util:'bolt',car:'car',ins:'shield',fee:'receipt',buy:'bag',misc:'dots',income:'income',ops:'company',taxes:'percent'};
+const SUB_DEF={food:'utensils',grocery:'basket',shopping:'bag',medical:'medical',edu:'book',fun:'ticket',subscr:'subscr',rent:'key',mortgage:'bank',bodycorp:'apartment',council:'doc',homerepair:'wrench',garden:'sprout',
+  elec:'bolt',water:'water',gas:'flame',internet:'wifi',phone:'phone',fuel:'fuel',parking:'parking',toll:'road',transit:'bus',service:'gear',carrepair:'wrench',rego:'plate',caracc:'box',license:'license',
+  homeins:'shieldhome',carins:'shield',healthins:'heart',lifeins:'umbrella',stamp:'stamp',transferfee:'transfer',legal:'scale',firb:'bank',tax:'percent',housebuy:'house',carbuy:'car',deposit:'dollar',furniture:'sofa',other:'dots',
+  salary:'cash',rentin:'key',interest:'chartup',refund:'refund',gift:'gift',otherin:'plusc',adsin:'billboard',farmin:'wheat',bankfee:'bank',wages:'team',contract:'contract',supplies:'box',ads:'ads',
+  equip:'hammer',renovate:'roller',property:'house',gst:'percent',incometax:'doc',landtax:'doc',othertax:'percent'};
 const KCOLOR={ops:'car',taxes:'fee'};
-function catIcon(id,small,sub){const k0=KCOLOR[id]||id,k=['life','home','util','car','ins','fee','buy','misc','income'].includes(k0)?k0:'x';
-  sub=SUB_ICON[sub]?sub:SUB_ALIAS[sub]||sub;
-  const base=SUB_SAME[sub]||(SUB_ICON[sub]?null:(id==='ops'?'misc':id==='taxes'?'fee':id));
-  const svg=base?(base==='home'?ICON.house:base==='car'?ICON.car:SVG(CAT_ICON[['life','util','ins','fee','buy','misc','income'].includes(base)?base:'x'])):SVG(SUB_ICON[sub]);return `<span class="cic${small?' s':''}" style="--k:var(--k-${k})">${svg}</span>`}
+const catColor=id=>{const k=KCOLOR[id]||id;return ['life','home','util','car','ins','fee','buy','misc','income'].includes(k)?k:'x'};
+const catDefault=id=>S.cats.find(x=>x.id===id)?.icon||CAT_DEF[id]||'tag';
+const subDefault=(id,sub)=>SUB_DEF[sub]||catDefault(id);
+function catKey(id,sub){const c=S.cats.find(x=>x.id===id),s=sub&&c?.subs.find(x=>x.id===sub);return s?.icon||(sub?subDefault(id,sub):catDefault(id))}
+const badge=(key,color,small)=>`<span class="cic${small?' s':''}" style="--k:var(--k-${color})">${iconHTML(key)}</span>`;
+// coloured category badge: the sub-category's icon, else the main category's
+const catIcon=(id,small,sub)=>badge(catKey(id,sub),catColor(id),small);
 const assetIcon=(kind,small)=>`<span class="cic${small?' s':''}" style="--k:var(--muted)">${iconHTML(kind)}</span>`;
-// built-in icon key, or 'u:<id>' for an icon the person uploaded
-function iconHTML(k){if(k?.startsWith('u:')){const ic=(S.icons||[]).find(i=>i.id===k.slice(2));if(ic)return `<img src="${ic.data}" alt="" style="width:70%;height:70%;object-fit:contain">`}return ICON[k]||ICON.other}
+// icon name from js/icons.js, or 'u:<id>' for an icon the person uploaded
+function iconHTML(k){if(k?.startsWith('u:')){const ic=(S.icons||[]).find(i=>i.id===k.slice(2));if(ic)return `<img src="${ic.data}" alt="" style="width:70%;height:70%;object-fit:contain">`;return isvg('other')}return isvg(hasIcon(k)?k:'other')}
 const assetShort=id=>{const a=assetOf(id);return a.nick&&PLACE.includes(a.kind)?a.nick:a.name};
 const jarOf=id=>S.jars.find(j=>j.id===id);
 const srcLabel=id=>id===NONE?NONE_LABEL:(jarOf(id)?.name||'已刪除的罐子');
@@ -1193,10 +1182,10 @@ function assetForm(a,folderId){
     <div class="f"><label for="anick">暱稱</label><input id="anick" type="text" value="${esc(a.nick||'')}" placeholder="選填"></div>
     <div class="f"><label for="afold">分組</label><select id="afold" data-title="選擇分組">${S.folders.map(f=>`<option value="${f.id}"${f.id===a.folder?' selected':''}>${esc(f.name)}</option>`).join('')}</select></div>
     ${isNew?'':`<div class="f"><label>狀態</label><div class="seg" style="margin-left:auto"><button type="button" data-arch="0" aria-pressed="${!a.archived}">使用中</button><button type="button" data-arch="1" aria-pressed="${!!a.archived}">封存</button></div></div>`}</div>
-    <div class="hint">房子、公寓、土地、店面這幾種，列表裡會顯示暱稱，不會顯示完整地址。封存的資產記帳時不會出現，但舊紀錄會保留。</div>
+    <div class="hint">房子、公寓、土地、店面、公司這類地點，列表裡會顯示暱稱，不會顯示完整地址。封存的資產記帳時不會出現，但舊紀錄會保留。</div>
     ${isNew?'':'<button class="btn danger" id="adelbtn">刪除這個資產</button>'}</div>`,root=>{
     const $=q=>root.querySelector(q);
-    $('#aicon').onclick=()=>iconPicker(a.kind,k=>{a.kind=k;$('#aicon').innerHTML=`${assetIcon(k,true)}<span>換圖示</span>${CHEV}`});
+    $('#aicon').onclick=()=>iconPicker(a.kind,k=>{if(!k)return;a.kind=k;$('#aicon').innerHTML=`${assetIcon(k,true)}<span>換圖示</span>${CHEV}`});
     root.querySelectorAll('[data-arch]').forEach(b=>b.onclick=()=>{a.archived=b.dataset.arch==='1';root.querySelectorAll('[data-arch]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
     $('#asave').onclick=()=>{const name=$('#aname').value.trim();if(!name){toast('請輸入名稱');return}
       Object.assign(a,{name,nick:$('#anick').value.trim(),folder:$('#afold').value});
@@ -1218,32 +1207,42 @@ function folderForm(f){
   },{label:isNew?'新增':'儲存',id:'fsave'});
 }
 function catForm(c){
-  const isNew=!c;let kind=c?.kind==='in'?'in':'out';
+  const isNew=!c;let kind=c?.kind==='in'?'in':'out',icon=c?.icon||null;
   const used=isNew?0:S.expenses.filter(e=>catOf(e.sub)?.id===c.id).length;
+  const def=()=>(c&&CAT_DEF[c.id])||(kind==='in'?'income':'tag'),color=()=>c?catColor(c.id):kind==='in'?'income':'x';
+  const face=()=>`${badge(icon||def(),color(),true)}<span>換圖示</span>${CHEV}`;
   openSheet(isNew?'新增大類':'編輯大類',`<div class="form"><div class="fgroup">
+    <div class="f"><label>圖示</label><button type="button" class="fsel" id="cicon">${face()}</button></div>
     <div class="f"><label for="cname">名稱</label><input id="cname" type="text" value="${esc(c?.name||'')}" placeholder="例如：寵物、旅行、兼職收入"></div>
     <div class="f"><label>類型</label><div class="seg" style="margin-left:auto">${[['out','支出'],['in','收入']].map(([k,l])=>`<button type="button" data-ck="${k}" aria-pressed="${kind===k}">${l}</button>`).join('')}</div></div></div>
     ${used?`<div class="hint">這個大類有 ${used} 筆紀錄。改成${kind==='in'?'支出':'收入'}的話，這些紀錄也會一起變成${kind==='in'?'支出':'收入'}。</div>`:''}
     ${c?.subs.length>1?'<button class="btn ghost" id="csort">調整小類順序</button>':''}
     ${isNew?'':c.subs.length?`<div class="hint">這個大類裡還有 ${c.subs.length} 個小類，先把小類刪除或搬到別的大類，才能刪除這個大類。</div>`:'<button class="btn danger" id="cdel">刪除這個大類</button>'}</div>`,root=>{
     const $=q=>root.querySelector(q);
-    root.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>{kind=b.dataset.ck;root.querySelectorAll('[data-ck]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+    root.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>{kind=b.dataset.ck;root.querySelectorAll('[data-ck]').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#cicon').innerHTML=face()});
+    $('#cicon').onclick=()=>iconPicker(icon,k=>{icon=k;$('#cicon').innerHTML=face()},{color:color(),def:def()});
     $('#csave').onclick=()=>{const name=$('#cname').value.trim();if(!name){toast('請輸入名稱');return}
-      if(isNew)S.cats.push({id:uid('c'),name,subs:[],...(kind==='in'?{kind:'in'}:{})});else{c.name=name;if(kind==='in')c.kind='in';else delete c.kind}saveCfg();closeSheet();renderSetup();toast(isNew?'已新增':'已更新')};
+      if(isNew)S.cats.push({id:uid('c'),name,subs:[],...(kind==='in'?{kind:'in'}:{}),...(icon?{icon}:{})});else{c.name=name;if(kind==='in')c.kind='in';else delete c.kind;if(icon)c.icon=icon;else delete c.icon}saveCfg();closeSheet();renderSetup();toast(isNew?'已新增':'已更新')};
     if($('#csort'))$('#csort').onclick=()=>reorderSheet(`調整「${c.name}」的小類順序`,c.subs.map(x=>({id:x.id,label:x.name,icon:catIcon(c.id,true,x.id)})),ids=>{c.subs=ids.map(i=>c.subs.find(x=>x.id===i))});
     if($('#cdel'))$('#cdel').onclick=()=>{closeSheet();withUndo(`已刪除大類「${c.name}」`,()=>{S.cats=S.cats.filter(x=>x!==c)})};
   },{label:isNew?'新增':'儲存',id:'csave'});
 }
 function subForm(subId,catId){
   const isNew=!subId, home=isNew?S.cats.find(c=>c.id===catId):catOf(subId), sub=isNew?{id:uid('s'),name:''}:home.subs.find(x=>x.id===subId);
-  const used=isNew?0:S.expenses.filter(e=>e.sub===subId).length;
+  const used=isNew?0:S.expenses.filter(e=>e.sub===subId).length;let icon=sub.icon||null;
+  const cid=()=>root0?.querySelector('#scat')?.value||home.id,def=()=>subDefault(cid(),sub.id);let root0=null;
+  const face=()=>`${badge(icon||def(),catColor(cid()),true)}<span>換圖示</span>${CHEV}`;
   openSheet(isNew?'新增小類':'編輯小類',`<div class="form"><div class="fgroup">
+    <div class="f"><label>圖示</label><button type="button" class="fsel" id="sicon">${face()}</button></div>
     <div class="f"><label for="sname">名稱</label><input id="sname" type="text" value="${esc(sub.name)}" placeholder="例如：保母、健身房"></div>
     <div class="f"><label for="scat">大類</label><select id="scat" data-title="放在哪個大類">${S.cats.map(c=>`<option value="${c.id}" data-cat="${c.id}"${c.id===home.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select></div></div>
     ${isNew?'':used?`<div class="hint">有 ${used} 筆開銷用這個小類，所以不能刪除；可以改名或搬到別的大類。</div>`:'<button class="btn danger" id="sdel">刪除這個小類</button>'}</div>`,root=>{
     const $=q=>root.querySelector(q);
+    root0=root;
+    $('#sicon').onclick=()=>iconPicker(icon,k=>{icon=k;$('#sicon').innerHTML=face()},{color:catColor(cid()),def:def()});
+    $('#scat').addEventListener('change',()=>{$('#sicon').innerHTML=face()});
     $('#ssave').onclick=()=>{const name=$('#sname').value.trim();if(!name){toast('請輸入名稱');return}
-      sub.name=name;const to=S.cats.find(c=>c.id===$('#scat').value);
+      sub.name=name;if(icon)sub.icon=icon;else delete sub.icon;const to=S.cats.find(c=>c.id===$('#scat').value);
       if(!isNew&&to!==home)home.subs=home.subs.filter(x=>x!==sub);if(isNew||to!==home)to.subs.push(sub);
       saveCfg();closeSheet();renderSetup();toast(isNew?'已新增':'已更新')};
     if($('#sdel'))$('#sdel').onclick=()=>{closeSheet();withUndo(`已刪除小類「${sub.name}」`,()=>{home.subs=home.subs.filter(x=>x!==sub)})};
@@ -1279,16 +1278,19 @@ function budgetExport(){
 }
 const r2x=n=>Math.round((+n||0)*100)/100;
 const xctx=()=>({fyStart:fyStart(),ledgerName:LEDGER?.name||'',currencyCode:S.currency,budget:budgetExport(),S,CYC,NONE,NONE_LABEL,assetOf,subName,catOf,jarOf,title,timing,defaultConfig,uid,isIn,sv,cur:cur(),buyName:buyName()});
-function iconPicker(current,onPick){
-  const tile=(k,l)=>`<button class="card pad stack" data-kind="${k}" style="align-items:center;gap:6px;${current===k?'border-color:var(--accent);color:var(--accent)':''}"><span class="dot">${iconHTML(k)}</span><span class="small ell" style="max-width:100%">${esc(l)}</span></button>`;
-  const grid=`style="grid-template-columns:repeat(auto-fill,minmax(96px,1fr))"`;
-  openSheet('選擇圖示',`<div class="stats" ${grid}>${KINDS.map(([k,l])=>tile(k,l)).join('')}</div>
-    <div class="gh">我的圖示</div>
-    ${(S.icons||[]).length?`<div class="stats" ${grid}>${S.icons.map(ic=>tile('u:'+ic.id,ic.name)).join('')}</div>`:''}
-    <label class="btn ghost" style="margin-top:10px;width:100%"><input type="file" id="icup" accept="image/svg+xml,image/png,image/jpeg,image/webp" multiple hidden>＋ 上傳自己的圖示</label>
-    <div class="hint" style="margin-top:6px">可以選 SVG、PNG 或 JPG，一次選好幾個也可以。上傳後所有裝置都看得到；在「設定 → 偏好」可以刪除。</div>`,root=>{
-    root.querySelector('#icup').onchange=async ev=>{if(await uploadIcons(ev.target.files))iconPicker(current,onPick)};
-    root.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{onPick(b.dataset.kind);closePicker()});
+// opts: {color: category colour key, def: icon used when nothing is picked}
+function iconPicker(current,onPick,opts={}){
+  const btn=k=>`<button type="button" class="ib" data-icon="${k}" aria-selected="${current===k}" aria-label="${esc(k.startsWith('u:')?(S.icons.find(i=>'u:'+i.id===k)?.name||''):k)}">${iconHTML(k)}</button>`;
+  const mine=S.icons||[];
+  openSheet('選擇圖示',`<div class="ipk" style="${opts.color?`--k:var(--k-${opts.color})`:''}">
+    ${opts.def?`<button type="button" class="btn ghost ipdef" data-icon="" aria-pressed="${!current}"><span class="ib s">${iconHTML(opts.def)}</span>使用預設圖示</button>`:''}
+    ${mine.length?`<div class="ph">我的圖示</div><div class="igrid">${mine.map(ic=>btn('u:'+ic.id)).join('')}</div>`:''}
+    ${GROUPS.map(([n,ks])=>`<div class="ph">${esc(n)}</div><div class="igrid">${ks.map(btn).join('')}</div>`).join('')}
+    <label class="btn ghost" style="margin-top:16px;width:100%"><input type="file" id="icup" accept="image/svg+xml,image/png,image/jpeg,image/webp" multiple hidden>＋ 上傳自己的圖示</label>
+    <div class="hint" style="margin-top:6px">可以選 SVG、PNG 或 JPG，一次選好幾個也可以。上傳後所有裝置都看得到；在「設定 → 偏好」可以刪除。</div></div>`,root=>{
+    root.querySelector('#icup').onchange=async ev=>{if(await uploadIcons(ev.target.files))iconPicker(current,onPick,opts)};
+    root.querySelectorAll('[data-icon]').forEach(b=>b.onclick=()=>{onPick(b.dataset.icon||null);closePicker()});
+    root.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'center'});
   },null,'pick');
 }
 async function readIcon(f){
@@ -1381,7 +1383,7 @@ function openPicker(sel){
   [...sel.children].forEach(n=>{if(n.tagName==='OPTGROUP')parts.push({head:n.label,opts:[...n.children]});else{const last=parts.at(-1);if(last&&!last.head)last.opts.push(n);else parts.push({opts:[n]})}});
   const row=o=>{const kid=o.textContent.startsWith('　└ '),grp=/^[cf]:/.test(o.value);
     return `<button class="po${kid?' kid':''}${grp?' grp':''}" data-i="${o.index}" role="option" aria-selected="${o.selected}">${kid?'':optVisual(o)}<span class="lbl">${esc(optText(o))}</span>${o.selected?OKMARK:''}</button>`};
-  const tile=o=>`<button class="pt" data-i="${o.index}" role="option" aria-selected="${o.selected}" style="${o.dataset.cat?`--k:var(--k-${['life','home','util','car','ins','fee','buy','misc','income'].includes(o.dataset.cat)?o.dataset.cat:'x'})`:''}">${optVisual(o)}<span>${esc(optText(o))}</span></button>`;
+  const tile=o=>`<button class="pt" data-i="${o.index}" role="option" aria-selected="${o.selected}" style="${o.dataset.cat?`--k:var(--k-${catColor(o.dataset.cat)})`:''}">${optVisual(o)}<span>${esc(optText(o))}</span></button>`;
   const body=parts.map(p=>(p.head?`<div class="ph">${esc(p.head)}</div>`:'')+(grid?`<div class="pgrid">${p.opts.map(tile).join('')}</div>`:`<div class="plist">${p.opts.map(row).join('')}</div>`)).join('');
   const search=!grid&&sel.options.length>12?'<input class="search psearch" type="search" placeholder="搜尋…" aria-label="搜尋選項">':'';
   const root=document.getElementById('pickroot');
@@ -1672,6 +1674,9 @@ function openLedger(id,roleHint){
     onSync:(ok)=>{SYNCED=ok;if(tab==='home'&&booted){const el=document.querySelector('.top .sub');if(el)el.innerHTML=syncLabel()}},
   });
 }
+// no pinch zoom: iPhone ignores user-scalable=no, so stop the gesture itself (double-tap zoom is off via touch-action in styles.css)
+['gesturestart','gesturechange','gestureend'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('touchmove',e=>{if(e.touches.length>1||(e.scale!=null&&e.scale!==1))e.preventDefault()},{passive:false});
 B.onUser(async(user,err)=>{
   if(err){showLogin(err.message);return}
   unsub?.();unsub=null;unsubL?.();unsubL=null;USER=user;booted=false;LID=null;LEDGERS=[];INVITES=[];PUSH=null;PUSH_OK=null;

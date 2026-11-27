@@ -318,3 +318,71 @@ body.readonly .tabbar nav{grid-template-columns:repeat(4,1fr)}
 .tiles.t3 .v{font-size:clamp(15px,4.4vw,22px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .v{white-space:nowrap}
 .tbl td,.tbl th{padding:8px 8px}
+
+/* ---------- icon picker: icons only, grouped ---------- */
+.ipk .ph{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em;padding:16px 4px 8px}
+.ipk .ph:first-child{padding-top:2px}
+.igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(50px,1fr));gap:8px}
+.ib{aspect-ratio:1;min-width:0;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--k,var(--ink));padding:0}
+.ib svg{width:24px;height:24px}
+.ib img{width:62%;height:62%;object-fit:contain}
+.ib[aria-selected="true"]{border-color:var(--k,var(--accent));background:color-mix(in srgb,var(--k,var(--accent)) 14%,var(--surface));box-shadow:0 0 0 2px color-mix(in srgb,var(--k,var(--accent)) 30%,transparent)}
+.ib:active{opacity:.6}
+.ib.s{width:28px;height:28px;border-radius:8px;border:0;background:color-mix(in srgb,var(--k,var(--accent)) 14%,var(--surface))}
+.ib.s svg{width:17px;height:17px}
+.ipdef{width:100%;justify-content:flex-start;gap:10px;margin-bottom:4px}
+.ipdef[aria-pressed="true"]{border-color:var(--k,var(--accent));color:var(--k,var(--accent))}
+.f .fsel#cicon,.f .fsel#sicon{flex:1;justify-content:flex-end}
+
+/* ---------- every screen size: phones (small to Pro Max), foldables (folded & open), tablets, computers ---------- */
+/* keep text the same size when the phone turns sideways, and stop pinch / double-tap zoom */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+:where(*){touch-action:pan-x pan-y}
+/* iPhone zooms into fields with text smaller than 16px and stays zoomed; use 16px on touch screens */
+@media (pointer:coarse){
+  input,select,textarea,.search,.f input,.f select,.f textarea,.srow input[type=text]{font-size:16px}
+  .amountin input{font-size:40px}
+}
+img,svg,canvas,video{max-width:100%}
+main{min-width:0;overflow-x:clip}
+.card,.fgroup,.item,.row,.grow{min-width:0}
+/* very narrow screens: folded Galaxy Z Fold cover screen, iPhone SE (1st gen), split-screen windows */
+@media (max-width:359px){
+  main{padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+  .top h1{font-size:21px}
+  .pad{padding:13px}
+  .item{padding:11px 12px;gap:10px}
+  .f{padding:9px 12px;gap:8px}
+  .f > label{width:68px;font-size:13.5px}
+  .tiles{gap:8px}
+  .tiles.t3{grid-template-columns:1fr 1fr}
+  .tiles.t3 .tile:last-child{grid-column:1/-1}
+  .tile{padding:12px}
+  .jar .bal{font-size:28px}
+  .agrid,.stats{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+  .subgrid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+  .tab{font-size:10px}
+  .tab svg{width:21px;height:21px}
+  .tab.add span.plus{width:42px;height:42px;border-radius:13px}
+  .sheet{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .seg button{padding:6px 9px}
+}
+/* phones turned sideways: short screen, so a slimmer tab bar and sheets that use the full height */
+@media (max-height:500px) and (orientation:landscape){
+  :root{--bar:52px}
+  .tab{flex-direction:row;gap:6px;font-size:12px}
+  .tab svg{width:20px;height:20px}
+  .tab.add span.plus{width:38px;height:38px;border-radius:12px}
+  .top{position:static}
+  .scrim{align-items:flex-end;padding:0}
+  .sheet{max-height:calc(100% - 8px);border-radius:16px 16px 0 0}
+}
+/* tablets in portrait and open foldables: use the extra width */
+@media (min-width:640px) and (max-width:899px){
+  main{max-width:820px}
+  .tabbar nav{max-width:620px}
+}
+/* big screens: two columns of jar cards and wider lists */
+@media (min-width:1200px){
+  .jarcards{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+}

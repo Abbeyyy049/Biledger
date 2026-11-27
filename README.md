@@ -13,6 +13,7 @@
 | `js/app.js` | 所有畫面和操作 |
 | `js/backend.js` | Firebase 登入和雲端資料庫 |
 | `js/excel.js` | 匯出和匯入 Excel |
+| `js/icons.js` | App 自己畫的圖示（117 個，類別和資產都可以換），不需要標示來源 |
 | `sw.js`、`manifest.webmanifest`、`icons/` | 加到 iPhone 主畫面、離線也能打開 |
 | `firestore.rules` | 資料庫安全規則（要貼到 Firebase 主控台） |
 
